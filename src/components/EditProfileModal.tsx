@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SplashButton } from './SplashButton';
 import { updateProfile, uploadAvatar } from '../lib/queries';
 
@@ -16,6 +16,15 @@ export function EditProfileModal({ open, onClose, currentName, currentStatus, on
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Re-sync state every time the modal opens so stale values are never shown
+  useEffect(() => {
+    if (open) {
+      setName(currentName);
+      setStatus(currentStatus);
+      setAvatarFile(null);
+    }
+  }, [open, currentName, currentStatus]);
+
   if (!open) return null;
 
   const handleSave = async () => {
@@ -27,14 +36,14 @@ export function EditProfileModal({ open, onClose, currentName, currentStatus, on
       if (uploadedUrl) newAvatarUrl = uploadedUrl;
     }
 
-    const updates: any = {};
-    if (name.trim() !== currentName) updates.display_name = name.trim();
-    if (status.trim() !== currentStatus) updates.status_text = status.trim();
+    // Always save all fields — avoids the "nothing changed" false-negative
+    const updates: any = {
+      display_name: name.trim() || currentName,
+      status_text: status.trim(),
+    };
     if (newAvatarUrl) updates.avatar_url = newAvatarUrl;
 
-    if (Object.keys(updates).length > 0) {
-      await updateProfile(updates);
-    }
+    await updateProfile(updates);
     
     setLoading(false);
     onSaved();
