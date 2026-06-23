@@ -1346,6 +1346,7 @@ export default function App() {
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
   const [setupStep, setSetupStep] = useState<'group' | 'meetup' | 'done'>('done');
 
   const [tab, setTab] = useState<TabId>('meetup');
@@ -1383,6 +1384,7 @@ export default function App() {
     // Always load conversation regardless of meetup
     const convId = await fetchOrCreateConversation(g.id);
     setConversationId(convId);
+    conversationIdRef.current = convId; // keep ref in sync
     if (convId) {
       const msgs = await fetchMessages(convId);
       setMessages(msgs);
@@ -1404,45 +1406,51 @@ export default function App() {
 
   useEffect(() => { loadData(); }, [session]);
 
-  // ── Refresh only messages (lightweight) ──
+  // ── Refresh only messages (lightweight) — reads from ref to avoid stale closure ──
   const refreshMessagesOnly = () => {
-    if (!conversationId) return;
-    fetchMessages(conversationId).then(setMessages);
+    const cid = conversationIdRef.current;
+    if (!cid) return;
+    fetchMessages(cid).then(setMessages);
   };
 
   // ── Realtime subscriptions ──
   useEffect(() => {
     if (!meetup?.id) return;
+    const meetupId = meetup.id;
     const rsvpSub = supabase
-      .channel(`rsvps:${meetup.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rsvps', filter: `meetup_id=eq.${meetup.id}` },
-        () => fetchRsvps(meetup.id).then(setRsvps))
-      .subscribe();
+      .channel(`rsvps:${meetupId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rsvps', filter: `meetup_id=eq.${meetupId}` },
+        () => fetchRsvps(meetupId).then(setRsvps))
+      .subscribe((status) => console.log('[RT] rsvps status:', status));
     const supplySub = supabase
-      .channel(`supplies:${meetup.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'supplies', filter: `meetup_id=eq.${meetup.id}` },
-        () => fetchSupplies(meetup.id).then(setSupplies))
-      .subscribe();
+      .channel(`supplies:${meetupId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'supplies', filter: `meetup_id=eq.${meetupId}` },
+        () => fetchSupplies(meetupId).then(setSupplies))
+      .subscribe((status) => console.log('[RT] supplies status:', status));
     return () => { supabase.removeChannel(rsvpSub); supabase.removeChannel(supplySub); };
   }, [meetup?.id]);
 
   useEffect(() => {
     if (!conversationId) return;
+    const cid = conversationId;
+    const refresh = () => fetchMessages(cid).then(setMessages);
     const msgSub = supabase
-      .channel(`messages:${conversationId}`)
+      .channel(`messages:${cid}`)
       .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        () => fetchMessages(conversationId).then(setMessages))
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${cid}` },
+        () => { console.log('[RT] message INSERT'); refresh(); })
       .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        () => fetchMessages(conversationId).then(setMessages))
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${cid}` },
+        () => { console.log('[RT] message UPDATE'); refresh(); })
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'message_reactions' },
-        () => fetchMessages(conversationId).then(setMessages))
+        () => { console.log('[RT] reaction INSERT'); refresh(); })
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'message_reactions' },
-        () => fetchMessages(conversationId).then(setMessages))
-      .subscribe();
+        () => { console.log('[RT] reaction DELETE'); refresh(); })
+      .subscribe((status, err) => {
+        console.log('[RT] messages channel status:', status, err ?? '');
+      });
     return () => { supabase.removeChannel(msgSub); };
   }, [conversationId]);
 
