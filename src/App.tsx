@@ -385,7 +385,7 @@ function SuppliesTab() {
 // CHAT TAB
 // ─────────────────────────────────────────────
 function ChatTab() {
-  const { messages: ctxMessages, conversationId, session, members, group, meetup } = useApp();
+  const { messages: ctxMessages, conversationId, session, members, group, meetup, reloadData } = useApp();
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -408,6 +408,7 @@ function ChatTab() {
     if (conversationId) {
       playSound('pop');
       await sendMessage(conversationId, text.trim());
+      await reloadData();
     }
     setText('');
   };
@@ -559,6 +560,7 @@ function ChatTab() {
               if (myReaction) await removeMessageReaction(msg.id, myReaction.emoji);
               await addMessageReaction(msg.id, emoji);
             }
+            await reloadData();
           };
 
           return (
