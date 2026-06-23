@@ -605,11 +605,10 @@ function ChatTab() {
 
       <div style={{
         padding:'10px 14px',
-        paddingBottom:'max(10px, env(safe-area-inset-bottom))',
+        paddingBottom: 'calc(85px + max(10px, env(safe-area-inset-bottom)))',
         background:'linear-gradient(0deg,rgba(8,18,10,0.98) 0%,rgba(8,18,10,0.9) 100%)',
         borderTop:'1px solid rgba(255,255,255,0.07)',
         flexShrink:0,
-        marginBottom: 70,
       }}>
         <div className="chat-input-wrapper">
           <div className="chat-input-row">
@@ -1108,7 +1107,23 @@ export default function App() {
           {tab === 'profile' && <ProfileTab />}
         </div>
 
-        {tab === 'chat' && <ChatTab/>}
+        {tab === 'chat' && (
+          <div style={{
+            position: 'fixed',
+            top: 0, left: '50%',
+            transform: 'translateX(-50%)',
+            width: '100%',
+            maxWidth: 430,
+            bottom: 0,
+            zIndex: 50,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'rgba(3,9,5,0.97)',
+            overflow: 'hidden',
+          }}>
+            <ChatTab/>
+          </div>
+        )}
 
         <nav className="bottom-nav" aria-label="Main navigation">
           <div className="bottom-nav-inner">
