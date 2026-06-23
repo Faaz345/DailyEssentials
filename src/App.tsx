@@ -385,7 +385,7 @@ function SuppliesTab() {
 // CHAT TAB
 // ─────────────────────────────────────────────
 function ChatTab() {
-  const { messages: ctxMessages, conversationId, session, members } = useApp();
+  const { messages: ctxMessages, conversationId, session, members, group, meetup } = useApp();
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -500,7 +500,7 @@ function ChatTab() {
         </div>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:17, fontWeight:800, display:'flex', alignItems:'center', gap:6 }}>
-            Smoke Sesh Crew <span style={{fontSize:15}}>🌿</span>
+            {group?.name ?? 'Loading...'} <span style={{fontSize:15}}>🌿</span>
           </div>
           <div style={{ fontSize:12, color:'var(--muted)', marginTop:2, display:'flex', alignItems:'center', gap:5, fontWeight:500 }}>
             <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--green-main)', display:'inline-block', boxShadow:'0 0 6px var(--green-main)' }}/>
@@ -521,21 +521,25 @@ function ChatTab() {
 
       <AddMembersModal open={showAddMembers} onClose={() => setShowAddMembers(false)} />
 
-      <div className="pinned-msg">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--green-main)" style={{ flexShrink:0, marginTop:2, filter:'drop-shadow(0 0 4px rgba(34,197,94,0.4))' }}>
-          <path d="M16 3H8v2h1.5v6.5l-2.5 3v1h4v5l1 1 1-1v-5h4v-1l-2.5-3V5H16z"/>
-        </svg>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:12, fontWeight:800, color:'var(--green-main)', marginBottom:2 }}>Pinned Message</div>
-          <div style={{ fontSize:13, color:'var(--txt)', fontWeight:500 }}>Meetup at 8 PM. Don't forget your vibes! 🌿</div>
-        </div>
-        <button style={{ background:'none', border:'none', color:'var(--green-main)', cursor:'pointer', padding:4, opacity:0.8 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+      {meetup && (
+        <div className="pinned-msg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--green-main)" style={{ flexShrink:0, marginTop:2, filter:'drop-shadow(0 0 4px rgba(34,197,94,0.4))' }}>
+            <path d="M16 3H8v2h1.5v6.5l-2.5 3v1h4v5l1 1 1-1v-5h4v-1l-2.5-3V5H16z"/>
           </svg>
-        </button>
-      </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:800, color:'var(--green-main)', marginBottom:2 }}>Pinned Meetup</div>
+            <div style={{ fontSize:13, color:'var(--txt)', fontWeight:500 }}>
+              {meetup.title} {meetup.start_at ? `at ${new Date(meetup.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+            </div>
+          </div>
+          <button style={{ background:'none', border:'none', color:'var(--green-main)', cursor:'pointer', padding:4, opacity:0.8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div className="hide-scroll" style={{ flex:1, overflowY:'auto', padding:'16px 14px 10px' }}>
         {msgs.map((msg: any) => {
@@ -1019,22 +1023,26 @@ export default function App() {
     // Meetup
     const m = await fetchLatestMeetup(g.id);
     setMeetup(m);
-    if (!m) { setSetupStep('meetup'); }
-    else {
+    
+    // Always load conversation regardless of meetup
+    const convId = await fetchOrCreateConversation(g.id);
+    setConversationId(convId);
+    if (convId) {
+      const msgs = await fetchMessages(convId);
+      setMessages(msgs);
+    }
+
+    if (!m) { 
+      setSetupStep('meetup'); 
+    } else {
       setSetupStep('done');
-      // RSVPs + Supplies + Chat
-      const [r, s, convId] = await Promise.all([
+      // RSVPs + Supplies
+      const [r, s] = await Promise.all([
         fetchRsvps(m.id),
         fetchSupplies(m.id),
-        fetchOrCreateConversation(g.id),
       ]);
       setRsvps(r);
       setSupplies(s);
-      setConversationId(convId);
-      if (convId) {
-        const msgs = await fetchMessages(convId);
-        setMessages(msgs);
-      }
     }
   };
 
@@ -1085,7 +1093,7 @@ export default function App() {
     return <CreateGroupPage onGroupCreated={() => { setSetupStep('meetup'); loadData(); }} />;
   }
   if (setupStep === 'meetup' && group) {
-    return <CreateMeetupPage groupId={group.id} onCreated={() => { setSetupStep('done'); loadData(); }} onSkip={() => setSetupStep('done')} />;
+    return <CreateMeetupPage groupId={group.id} onCreated={() => { setSetupStep('done'); loadData(); }} onSkip={() => { setSetupStep('done'); loadData(); }} />;
   }
 
   // ── Main App ──
