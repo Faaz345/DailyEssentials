@@ -504,7 +504,7 @@ function ChatTab() {
           </div>
           <div style={{ fontSize:12, color:'var(--muted)', marginTop:2, display:'flex', alignItems:'center', gap:5, fontWeight:500 }}>
             <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--green-main)', display:'inline-block', boxShadow:'0 0 6px var(--green-main)' }}/>
-            {onlineUsers.length > 0 ? `${onlineUsers.length} online` : 'Connecting...'}
+            {Math.max(1, onlineUsers.length)} online
           </div>
         </div>
         <button className="chat-hdr-btn green">
