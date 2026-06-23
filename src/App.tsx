@@ -389,7 +389,7 @@ function SuppliesTab() {
 // CHAT TAB
 // ─────────────────────────────────────────────
 function ChatTab() {
-  const { messages: ctxMessages, conversationId, session, members, group, meetup, reloadData, refreshMessages } = useApp();
+  const { messages: ctxMessages, conversationId, session, members, group, meetup, refreshMessages } = useApp();
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const [showAddMembers, setShowAddMembers] = useState(false);
