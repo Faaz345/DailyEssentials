@@ -159,9 +159,10 @@ export const fetchMyGroup = async (): Promise<Group | null> => {
 export const createGroup = async (name: string): Promise<Group | null> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+  const token = Math.random().toString(36).substring(2, 8).toUpperCase();
   const { data: group, error: gErr } = await supabase
     .from('groups')
-    .insert({ name, created_by: user.id })
+    .insert({ name, created_by: user.id, invite_token: token })
     .select()
     .single();
   if (gErr || !group) { console.error('createGroup:', gErr); return null; }

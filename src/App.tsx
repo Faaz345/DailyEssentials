@@ -1098,6 +1098,8 @@ export default function App() {
       .channel(`messages:${conversationId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
         () => fetchMessages(conversationId).then(setMessages))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' },
+        () => fetchMessages(conversationId).then(setMessages))
       .subscribe();
     return () => { supabase.removeChannel(msgSub); };
   }, [conversationId]);
