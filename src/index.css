@@ -5,13 +5,13 @@
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
   body {
     width: 390px !important;
     max-width: 390px !important;
-    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     position: relative;
     border-left:  1px solid rgba(255,255,255,0.07);
@@ -53,13 +53,14 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { height: 100%; overflow: hidden; }
+html { height: 100%; height: 100dvh; overflow: hidden; overflow-x: hidden; }
 
 body {
   font-family: "Poppins", system-ui, sans-serif;
   color: var(--txt);
   height: 100%;
   overflow: hidden;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   /* Background.png leaf wallpaper with dark overlay for readability */
   background-color: #030905;
@@ -655,7 +656,9 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 .chat-input-row input {
   flex: 1; background: none; border: none;
-  color: var(--txt); font-family: inherit; font-size: 14px; outline: none;
+  color: var(--txt); font-family: inherit;
+  /* 16px stops iOS Safari from zooming on focus */
+  font-size: 16px; outline: none;
 }
 .chat-input-row input::placeholder { color: var(--muted); }
 .send-btn {
@@ -754,11 +757,12 @@ button { cursor: pointer; font-family: inherit; border: none; }
 ══════════════════════════════════ */
 .bottom-nav {
   position: fixed;
-  left: 14px; right: 14px; bottom: max(14px, env(safe-area-inset-bottom));
+  /* Clamped to body width on desktop, full-width minus margin on mobile */
+  left: 14px; right: 14px;
+  bottom: max(14px, env(safe-area-inset-bottom));
   z-index: 100;
   display: flex;
   justify-content: center;
-  /* Dark floating pill */
   background: linear-gradient(180deg, rgba(13,26,15,0.95) 0%, rgba(9,15,10,0.98) 100%);
   border: 1px solid rgba(255,255,255,0.06);
   border-top-color: rgba(255,255,255,0.12);
@@ -768,6 +772,8 @@ button { cursor: pointer; font-family: inherit; border: none; }
   box-shadow:
     0 -8px 32px rgba(0,0,0,.5),
     0 10px 20px rgba(0,0,0,.8);
+  /* Prevent nav from becoming too wide on very small screens */
+  max-width: calc(100vw - 28px);
 }
 .bottom-nav-inner {
   display: flex; width: 100%; max-width: var(--maxw);

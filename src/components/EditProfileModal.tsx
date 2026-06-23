@@ -16,7 +16,6 @@ export function EditProfileModal({ open, onClose, currentName, currentStatus, on
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Re-sync state every time the modal opens so stale values are never shown
   useEffect(() => {
     if (open) {
       setName(currentName);
@@ -30,71 +29,74 @@ export function EditProfileModal({ open, onClose, currentName, currentStatus, on
   const handleSave = async () => {
     setLoading(true);
     let newAvatarUrl = undefined;
-    
     if (avatarFile) {
       const uploadedUrl = await uploadAvatar(avatarFile);
       if (uploadedUrl) newAvatarUrl = uploadedUrl;
     }
-
-    // Always save all fields — avoids the "nothing changed" false-negative
     const updates: any = {
       display_name: name.trim() || currentName,
       status_text: status.trim(),
     };
     if (newAvatarUrl) updates.avatar_url = newAvatarUrl;
-
     await updateProfile(updates);
-    
     setLoading(false);
     onSaved();
     onClose();
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '12px',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 12, color: '#fff',
+    /* 16px prevents iOS from auto-zooming on focus */
+    fontSize: 16, fontFamily: 'inherit',
+    outline: 'none', boxSizing: 'border-box',
+  };
+
   return (
     <>
-      <div 
+      {/* Backdrop */}
+      <div
         style={{
           position: 'fixed', inset: 0, zIndex: 300,
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-          animation: 'fade-in 0.2s ease'
+          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
+          animation: 'fade-in 0.2s ease',
         }}
         onClick={onClose}
       />
+
+      {/* Card — centred, keyboard-safe */}
       <div className="card" style={{
-        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        width: '90%', maxWidth: 360, zIndex: 301,
+        position: 'fixed',
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 'calc(100% - 32px)', maxWidth: 360,
+        zIndex: 301,
         padding: '24px 20px',
-        animation: 'rise 0.3s ease both'
+        animation: 'rise 0.3s ease both',
+        /* Never taller than the visible area (handles open keyboard on iOS) */
+        maxHeight: 'calc(100dvh - 48px)',
+        overflowY: 'auto',
       }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 20 }}>Edit Profile</div>
-        
+
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 13, color: 'var(--txt2)', marginBottom: 6 }}>Display Name</label>
-          <input 
-            value={name} 
-            onChange={e => setName(e.target.value)} 
-            placeholder="Your name..."
-            style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15 }}
-          />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name..." style={inputStyle} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 13, color: 'var(--txt2)', marginBottom: 6 }}>Status</label>
-          <input 
-            value={status} 
-            onChange={e => setStatus(e.target.value)} 
-            placeholder="What's the vibe?"
-            style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15 }}
-          />
+          <input value={status} onChange={e => setStatus(e.target.value)} placeholder="What's the vibe?" style={inputStyle} />
         </div>
 
         <div style={{ marginBottom: 24 }}>
           <label style={{ display: 'block', fontSize: 13, color: 'var(--txt2)', marginBottom: 6 }}>Profile Picture</label>
-          <input 
-            type="file" 
-            accept="image/*"
+          <input
+            type="file" accept="image/*"
             onChange={e => e.target.files && setAvatarFile(e.target.files[0])}
-            style={{ width: '100%', padding: '8px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 12, color: 'var(--muted)', fontSize: 13 }}
+            style={{ width: '100%', padding: '8px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 12, color: 'var(--muted)', fontSize: 13, boxSizing: 'border-box' }}
           />
         </div>
 

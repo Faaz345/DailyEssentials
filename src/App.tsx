@@ -520,82 +520,124 @@ function ChatTab() {
     }}>
       {menuMsg && (
         <>
-          <div onClick={() => setMenuMsg(null)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'transparent' }} />
+          {/* Backdrop */}
+          <div onClick={() => setMenuMsg(null)} style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)'
+          }} />
+
+          {/* Menu panel */}
           <div style={{
-            position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 201, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center',
-            animation: 'fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            position: 'fixed', bottom: 90, left: 14, right: 14,
+            zIndex: 201,
+            maxWidth: 390, margin: '0 auto',
+            display: 'flex', flexDirection: 'column', gap: 8,
+            animation: 'rise 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}>
-            {/* Reactions Bar */}
+
+            {/* ── Emoji Reactions Grid ── */}
             <div style={{
-              display: 'flex', gap: 6, padding: '8px 12px',
-              background: '#1f2c34', borderRadius: 30,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.05)'
+              background: 'linear-gradient(160deg, #0D1F10, #071409)',
+              border: '1px solid rgba(34,197,94,0.2)',
+              borderRadius: 20, padding: '14px 16px',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.85)',
             }}>
-              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
-                <button key={emoji} onClick={async () => {
-                  playSound('click');
-                  await addMessageReaction(menuMsg!, emoji);
-                  await reloadData();
-                  setMenuMsg(null);
-                }} style={{
-                  background: 'none', border: 'none', fontSize: 24, padding: 4, cursor: 'pointer',
-                  transition: 'transform 0.15s', outline: 'none'
-                }} className="hover-scale">
-                  {emoji}
-                </button>
-              ))}
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 4px' }} />
-              <button style={{
-                background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: 20,
-                width: 32, height: 32, borderRadius: '50%', display: 'grid', placeItems: 'center', cursor: 'pointer',
-                marginTop: 2
-              }} onClick={() => setMenuMsg(null)}>+</button>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', marginBottom: 10, letterSpacing: 1, textTransform: 'uppercase' }}>React</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 2 }}>
+                {['👍','❤️','🔥','😂','😮','😢','💯','🙏','🤩','💀','😤','🥰','🫡','🤯','🌿','🎉'].map(emoji => (
+                  <button key={emoji} onClick={async () => {
+                    playSound('click');
+                    await addMessageReaction(menuMsg!, emoji);
+                    refreshMessages();
+                    setMenuMsg(null);
+                  }} style={{
+                    background: 'none', border: 'none', fontSize: 22,
+                    padding: '5px 2px', cursor: 'pointer',
+                    borderRadius: 8, lineHeight: 1, outline: 'none',
+                    transition: 'transform 0.12s',
+                  }}>
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Actions Menu */}
+            {/* ── Action Buttons ── */}
             <div style={{
-              background: '#1f2c34',
-              borderRadius: 16, overflow: 'hidden',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-              minWidth: 260, padding: '8px 0'
+              background: 'linear-gradient(160deg, #0D1F10, #071409)',
+              border: '1px solid rgba(34,197,94,0.2)',
+              borderRadius: 20, overflow: 'hidden',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.85)',
             }}>
               {(() => {
                 const msg = msgs.find(m => m.id === menuMsg);
                 const canDelete = msg?.mine && msg && (Date.now() - new Date(msg.createdAt).getTime()) < 5 * 60 * 1000;
 
-                const ActionBtn = ({ icon, label, onClick, color = '#fff' }: any) => (
+                const ActionBtn = ({ icon, label, onClick, color = 'var(--txt)', last = false }: any) => (
                   <button onClick={() => { onClick(); setMenuMsg(null); }} style={{
-                    display: 'flex', alignItems: 'center', gap: 16,
-                    width: '100%', padding: '14px 20px', background: 'none', border: 'none',
-                    color, fontSize: 16, fontWeight: 500, cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    width: '100%', padding: '15px 18px',
+                    background: 'none', border: 'none',
+                    borderBottom: last ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                    color, fontSize: 15, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                    fontFamily: 'inherit',
                   }}>
-                    <span style={{ fontSize: 20, opacity: 0.8 }}>{icon}</span> {label}
+                    <span style={{
+                      width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+                      background: color === 'var(--txt)' ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.1)',
+                      border: `1px solid ${color === 'var(--txt)' ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.25)'}`,
+                      display: 'grid', placeItems: 'center',
+                    }}>
+                      {icon}
+                    </span>
+                    {label}
                   </button>
                 );
 
                 return (
                   <>
-                    {msg?.mine && <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>} label="Message info" onClick={() => setInfoMsgId(msg.id)} />}
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6M3 10l6-6"/></svg>} label="Reply" onClick={() => setReplyingTo(msg?.id ?? null)} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>} label="Copy" onClick={() => navigator.clipboard?.writeText(msg?.text ?? '')} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>} label={msg?.isPinned ? "Unpin" : "Pin"} onClick={async () => {
-                      if (!msg) return;
-                      msg.isPinned ? await unpinMessage(msg.id) : await pinMessage(msg.id);
-                      refreshMessages();
-                    }} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>} label={starredMsgIds.has(msg?.id ?? '') ? "Unstar" : "Star"} onClick={async () => {
-                      if (!msg) return;
-                      if (starredMsgIds.has(msg.id)) {
-                        await unstarMessage(msg.id);
-                        setStarredMsgIds(prev => { const n = new Set(prev); n.delete(msg.id); return n; });
-                      } else {
-                        await starMessage(msg.id);
-                        setStarredMsgIds(prev => { const n = new Set(prev); n.add(msg.id); return n; });
-                      }
-                    }} />
+                    <ActionBtn
+                      icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green-main)" strokeWidth="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6M3 10l6-6"/></svg>}
+                      label="Reply"
+                      onClick={() => setReplyingTo(msg?.id ?? null)}
+                    />
+                    <ActionBtn
+                      icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green-main)" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>}
+                      label="Copy"
+                      onClick={() => navigator.clipboard?.writeText(msg?.text ?? '')}
+                    />
+                    <ActionBtn
+                      icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green-main)" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>}
+                      label={msg?.isPinned ? 'Unpin' : 'Pin'}
+                      onClick={async () => {
+                        if (!msg) return;
+                        msg.isPinned ? await unpinMessage(msg.id) : await pinMessage(msg.id);
+                        refreshMessages();
+                      }}
+                    />
+                    <ActionBtn
+                      icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green-main)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
+                      label={starredMsgIds.has(msg?.id ?? '') ? 'Unstar' : 'Star'}
+                      last={!canDelete}
+                      onClick={async () => {
+                        if (!msg) return;
+                        if (starredMsgIds.has(msg.id)) {
+                          await unstarMessage(msg.id);
+                          setStarredMsgIds(prev => { const n = new Set(prev); n.delete(msg.id); return n; });
+                        } else {
+                          await starMessage(msg.id);
+                          setStarredMsgIds(prev => { const n = new Set(prev); n.add(msg.id); return n; });
+                        }
+                      }}
+                    />
                     {canDelete && (
-                      <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>} label="Delete" onClick={() => handleDelete(menuMsg!)} color="#f87171" />
+                      <ActionBtn
+                        icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>}
+                        label="Delete"
+                        onClick={() => handleDelete(menuMsg!)}
+                        color="#f87171"
+                        last={true}
+                      />
                     )}
                   </>
                 );
@@ -724,7 +766,6 @@ function ChatTab() {
                 </div>
               )}
               <div className="chat-bubble-wrap">
-                {!isMe && <div className="chat-sender">{name}</div>}
 
                 <div className={`chat-bubble ${isMe ? 'mine' : 'theirs'}${msg.isDeleted ? ' deleted' : ''}`}
                   onDoubleClick={() => !msg.isDeleted && toggleReaction('🔥')}
@@ -809,7 +850,7 @@ function ChatTab() {
       {/* ── Input Bar ── */}
       <div style={{
         padding: '10px 14px',
-        paddingBottom: 'calc(85px + max(10px, env(safe-area-inset-bottom)))',
+        paddingBottom: 'calc(max(env(safe-area-inset-bottom), 10px) + 74px)',
         background: 'linear-gradient(0deg,rgba(8,18,10,0.98) 0%,rgba(8,18,10,0.9) 100%)',
         borderTop: '1px solid rgba(255,255,255,0.07)',
         flexShrink: 0,
