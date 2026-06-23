@@ -7,16 +7,6 @@ import './index.css';
 import logoSrc  from './assets/logo.png';
 import _bgSrc   from './assets/bg.png'; // imported so Vite bundles it
 import avYou    from './assets/av_you.png';
-import avMaya   from './assets/av_maya.png';
-import avJesse  from './assets/av_jesse.png';
-import avChris  from './assets/av_chris.png';
-import avTina   from './assets/av_tina.png';
-
-import supWeed    from './assets/sup_weed.png';
-import supPapers  from './assets/sup_papers.png';
-import supLighter from './assets/sup_lighter.png';
-import supSnacks  from './assets/sup_snacks.png';
-import supDrinks  from './assets/sup_drinks.png';
 
 import { supabase, signOut } from './lib/supabase';
 import { 
@@ -88,29 +78,7 @@ const IcoProfile = ({ active }: { active: boolean }) => (
 // ─────────────────────────────────────────────
 // Data
 // ─────────────────────────────────────────────
-const MEMBERS = [
-  { id:'you',   name:'You',   color:'#21C55D', status:'Host',   pillCls:'pill-host', avatar: avYou,   isHost: true  },
-  { id:'maya',  name:'Maya',  color:'#60A5FA', status:"I'm In", pillCls:'pill-in',   avatar: avMaya,  isHost: false },
-  { id:'jesse', name:'Jesse', color:'#FBBF24', status:"I'm In", pillCls:'pill-in',   avatar: avJesse, isHost: false },
-  { id:'chris', name:'Chris', color:'#A78BFA', status:"I'm In", pillCls:'pill-in',   avatar: avChris, isHost: false },
-  { id:'tina',  name:'Tina',  color:'#F87171', status:"Can't",  pillCls:'pill-cant', avatar: avTina,  isHost: false },
-];
-
-const INIT_SUPPLIES = [
-  { id:'weed',    name:'Weed',   imgSrc: supWeed,    icon:'🌿', by:'You'   },
-  { id:'papers',  name:'Papers', imgSrc: supPapers,  icon:'📄', by:'Jesse' },
-  { id:'lighter', name:'Lighter',imgSrc: supLighter, icon:'🔥', by: null   },
-  { id:'snacks',  name:'Snacks', imgSrc: supSnacks,  icon:'🍿', by:'Maya'  },
-  { id:'drinks',  name:'Drinks', imgSrc: supDrinks,  icon:'🥤', by: null   },
-];
-
-const INIT_MSGS = [
-  { id:1, from:'maya',  text:"Yo! Who's bringing the loud? 😆",      time:'7:31 PM', mine:false },
-  { id:2, from:'jesse', text:"I got the gas 💨",                       time:'7:33 PM', mine:false },
-  { id:3, from:'you',   text:"Bet! I'll bring papers and snacks 🍊",  time:'7:34 PM', mine:true  },
-  { id:4, from:'chris', text:"Don't forget drinks 🍺",                time:'7:35 PM', mine:false },
-  { id:5, from:'maya',  text:"Let's gooo 🔥",                          time:'7:35 PM', mine:false },
-];
+// No demo data
 
 // Circular Progress Ring
 const Ring = ({ pct }: { pct: number }) => {
@@ -171,8 +139,7 @@ function MeetupTab() {
     };
   });
 
-  const demoMode = !meetup;
-  const displayMembers = demoMode ? MEMBERS : membersWithStatus;
+  const displayMembers = membersWithStatus;
 
   return (
     <div style={{ animation:'fade-in .2s ease' }}>
@@ -192,12 +159,12 @@ function MeetupTab() {
               </svg>
               {timeStr}
             </div>
-            {(meetup?.place_label || demoMode) && (
+            {meetup?.place_label && (
               <div className="meetup-info-row">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="#5A7C5C">
                   <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
                 </svg>
-                {meetup?.place_label ?? '123 Greenway Ave,\nLos Angeles, CA'}
+                {meetup.place_label}
               </div>
             )}
           </div>
@@ -278,8 +245,7 @@ function SuppliesTab() {
   const [customName, setCustomName] = useState('');
   const [addingCustom, setAddingCustom] = useState(false);
 
-  const demoMode = !meetup;
-  const supplies = demoMode ? INIT_SUPPLIES : ctxSupplies;
+  const supplies = ctxSupplies;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -293,7 +259,7 @@ function SuppliesTab() {
 
   const toggle = async (s: any) => {
     playSound(s.claimed_by ? 'click' : 'pop');
-    if (demoMode) return;
+    if (!meetup) return;
     if (s.claimed_by) {
       await unclaimSupply(s.id);
     } else {
@@ -305,8 +271,8 @@ function SuppliesTab() {
   const addCustomSupply = async () => {
     if (customName && customName.trim()) {
       playSound('pop');
-      if (!demoMode) {
-        await addSupply(meetup!.id, customName.trim());
+      if (meetup) {
+        await addSupply(meetup.id, customName.trim());
         await reloadData();
       }
       setCustomName('');
@@ -337,8 +303,8 @@ function SuppliesTab() {
       <div>
         <div style={{ fontSize:15, fontWeight:800, color:'var(--txt2)', marginBottom:12, paddingLeft:4 }}>Checklist</div>
         {supplies.map((s: any) => {
-          const isClaimed = demoMode ? !!s.by : !!s.claimed_by;
-          const claimedByName = demoMode ? s.by : (s.profiles?.display_name ?? (s.claimed_by ? 'Someone' : null));
+          const isClaimed = !!s.claimed_by;
+          const claimedByName = s.profiles?.display_name ?? (s.claimed_by ? 'Someone' : null);
           const imgSrc = s.imgSrc;
           return (
             <div className="supply-row" key={s.id}>
@@ -419,13 +385,12 @@ function SuppliesTab() {
 // CHAT TAB
 // ─────────────────────────────────────────────
 function ChatTab() {
-  const { messages: ctxMessages, conversationId, session } = useApp();
+  const { messages: ctxMessages, conversationId, session, members } = useApp();
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
-  const msgs = (!conversationId || ctxMessages.length === 0) ? INIT_MSGS : ctxMessages.map(m => ({
+  const msgs = ctxMessages.map(m => ({
     id: m.id,
-    from: m.sender_id === session?.user?.id ? 'you' : m.sender_id,
     text: m.body,
     time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     mine: m.sender_id === session?.user?.id,
@@ -520,16 +485,16 @@ function ChatTab() {
           </svg>
         </button>
 
-        <div style={{ position:'relative', width:46, height:46, flexShrink:0 }}>
-          {[MEMBERS[1], MEMBERS[0]].map((m,i) => (
-            <div key={m.id} className="chat-av" style={{
+        <div className="chat-hdr-avatars" onClick={() => setShowAddMembers(true)} style={{ position:'relative', width:46, height:46, flexShrink:0, cursor:'pointer' }}>
+          {members.slice(0, 2).map((m,i) => (
+            <div key={m.user_id} className="chat-av" style={{
               position:'absolute', width:30, height:30,
               top:i===0?0:'auto', bottom:i===1?0:'auto',
               left:i===0?0:'auto', right:i===1?0:'auto',
-              background:m.color,
+              background: '#21C55D',
               boxShadow:'0 2px 4px rgba(0,0,0,0.5)'
             }}>
-              <img src={m.avatar} alt={m.name}/>
+              <img src={m.profiles?.avatar_url || avYou} alt={m.profiles?.display_name || 'Member'}/>
             </div>
           ))}
         </div>
@@ -575,10 +540,9 @@ function ChatTab() {
       <div className="hide-scroll" style={{ flex:1, overflowY:'auto', padding:'16px 14px 10px' }}>
         {msgs.map((msg: any) => {
           const isMe = msg.mine;
-          const demoMember = MEMBERS.find(m => m.id === msg.from);
-          const avatar = msg.senderAvatar ?? demoMember?.avatar ?? avYou;
-          const name = msg.senderName ?? demoMember?.name ?? 'Member';
-          const color = msg.senderColor ?? demoMember?.color ?? '#21C55D';
+          const avatar = msg.senderAvatar ?? avYou;
+          const name = msg.senderName ?? 'Member';
+          const color = msg.senderColor ?? '#21C55D';
           const rawMsg = ctxMessages.find(m => m.id === msg.id);
           const reactions = rawMsg?.message_reactions || [];
           const myReaction = reactions.find(r => r.user_id === session?.user?.id);
