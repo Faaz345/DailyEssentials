@@ -414,7 +414,8 @@ function ChatTab() {
     createdAt: m.created_at,
     isDeleted: !!m.deleted_at,
     isPinned: m.is_pinned,
-    replyTo: m.reply_to,
+    // Guard: Supabase LEFT JOIN returns {} (truthy) when there's no reply — only keep it if it has actual content
+    replyTo: m.reply_to && (m.reply_to as any)?.body ? m.reply_to : null,
   }));
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
@@ -771,7 +772,7 @@ function ChatTab() {
                   onDoubleClick={() => !msg.isDeleted && toggleReaction('🔥')}
                   style={msg.isDeleted ? { opacity: 0.55, fontStyle: 'italic', fontSize: 13 } : undefined}
                 >
-                  {msg.replyTo && !msg.isDeleted && (
+                  {msg.replyTo && msg.replyTo.body && !msg.isDeleted && (
                     <div style={{
                       background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 8, marginBottom: 6,
                       borderLeft: '3px solid rgba(255,255,255,0.3)', fontSize: 13, color: 'rgba(255,255,255,0.7)'
