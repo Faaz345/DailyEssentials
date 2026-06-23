@@ -327,3 +327,41 @@ export const removeMessageReaction = async (messageId: string, emoji: string) =>
   if (!user) return;
   await supabase.from('message_reactions').delete().match({ message_id: messageId, user_id: user.id, emoji });
 };
+
+// Soft-delete a message (WhatsApp style — sets deleted_at, hides body)
+export const deleteMessage = async (messageId: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase
+    .from('messages')
+    .update({ deleted_at: new Date().toISOString(), body: '🗑️ This message was deleted' })
+    .eq('id', messageId)
+    .eq('sender_id', user.id); // Only owner can delete
+  if (error) console.error('deleteMessage:', error);
+};
+
+// Mark all messages in a conversation as read by current user
+export const markMessagesRead = async (_conversationId: string, messageIds: string[]) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || messageIds.length === 0) return;
+  const rows = messageIds.map(mid => ({ message_id: mid, user_id: user.id }));
+  await supabase.from('message_receipts').upsert(rows, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
+};
+
+// Fetch read receipts for a conversation's messages
+export const fetchReceipts = async (conversationId: string): Promise<Record<string, string[]>> => {
+  const { data, error } = await supabase
+    .from('message_receipts')
+    .select('message_id, user_id')
+    .in('message_id',
+      (await supabase.from('messages').select('id').eq('conversation_id', conversationId)).data?.map(m => m.id) ?? []
+    );
+  if (error || !data) return {};
+  const map: Record<string, string[]> = {};
+  data.forEach(r => {
+    if (!map[r.message_id]) map[r.message_id] = [];
+    map[r.message_id].push(r.user_id);
+  });
+  return map;
+};
+
