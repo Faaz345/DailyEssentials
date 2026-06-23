@@ -277,3 +277,21 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.meetups;
  E N D ; 
  \ $ \ $ ;  
  
+ - -   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+ - -   E N A B L E   R E A L T I M E 
+ - -   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+ B E G I N ; 
+     D R O P   P U B L I C A T I O N   I F   E X I S T S   s u p a b a s e _ r e a l t i m e ; 
+     C R E A T E   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e ; 
+ C O M M I T ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . p r o f i l e s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . g r o u p s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . m e m b e r s h i p s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . m e e t u p s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . r s v p s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . s u p p l i e s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . c o n v e r s a t i o n s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . m e s s a g e s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . m e s s a g e _ r e a c t i o n s ; 
+ A L T E R   P U B L I C A T I O N   s u p a b a s e _ r e a l t i m e   A D D   T A B L E   p u b l i c . m e s s a g e _ r e c e i p t s ;  
+ 
