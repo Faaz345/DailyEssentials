@@ -502,50 +502,81 @@ function ChatTab() {
       animation: 'fade-in .2s ease',
       overflow: 'hidden',
     }}>
-      {/* Context menu overlay */}
-      {menuMsg && (
         <>
-          <div onClick={() => setMenuMsg(null)} style={{ position: 'fixed', inset: 0, zIndex: 200 }} />
+          <div onClick={() => setMenuMsg(null)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'transparent' }} />
           <div style={{
-            position: 'fixed', bottom: 160, left: '50%', transform: 'translateX(-50%)',
-            background: 'linear-gradient(160deg,#1A2E1C,#0F1E12)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 16, zIndex: 201, overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-            minWidth: 200,
+            position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 201, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center',
+            animation: 'fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           }}>
-            {(() => {
-              const msg = msgs.find(m => m.id === menuMsg);
-              const canDelete = msg?.mine && msg && (Date.now() - new Date(msg.createdAt).getTime()) < 5 * 60 * 1000;
-              return (
-                <>
-                  {canDelete && (
-                    <button onClick={() => handleDelete(menuMsg)} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      width: '100%', padding: '14px 18px', background: 'none', border: 'none',
-                      color: '#f87171', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
-                      borderBottom: '1px solid rgba(255,255,255,0.06)',
-                    }}>
-                      🗑️ Delete for everyone
-                    </button>
-                  )}
-                  <button onClick={() => {
-                    const msg = msgs.find(m => m.id === menuMsg);
-                    if (msg) { navigator.clipboard?.writeText(msg.text); }
-                    setMenuMsg(null);
-                  }} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    width: '100%', padding: '14px 18px', background: 'none', border: 'none',
-                    color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+            {/* Reactions Bar */}
+            <div style={{
+              display: 'flex', gap: 6, padding: '8px 12px',
+              background: '#1f2c34', borderRadius: 30,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.05)'
+            }}>
+              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                <button key={emoji} onClick={async () => {
+                  playSound('click');
+                  await addMessageReaction(menuMsg!, emoji);
+                  await reloadData();
+                  setMenuMsg(null);
+                }} style={{
+                  background: 'none', border: 'none', fontSize: 24, padding: 4, cursor: 'pointer',
+                  transition: 'transform 0.15s', outline: 'none'
+                }} className="hover-scale">
+                  {emoji}
+                </button>
+              ))}
+              <div style={{ width: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 4px' }} />
+              <button style={{
+                background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: 20,
+                width: 32, height: 32, borderRadius: '50%', display: 'grid', placeItems: 'center', cursor: 'pointer',
+                marginTop: 2
+              }} onClick={() => setMenuMsg(null)}>+</button>
+            </div>
+
+            {/* Actions Menu */}
+            <div style={{
+              background: '#1f2c34',
+              borderRadius: 16, overflow: 'hidden',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+              minWidth: 260, padding: '8px 0'
+            }}>
+              {(() => {
+                const msg = msgs.find(m => m.id === menuMsg);
+                const canDelete = msg?.mine && msg && (Date.now() - new Date(msg.createdAt).getTime()) < 5 * 60 * 1000;
+
+                const ActionBtn = ({ icon, label, onClick, color = '#fff' }: any) => (
+                  <button onClick={() => { onClick(); setMenuMsg(null); }} style={{
+                    display: 'flex', alignItems: 'center', gap: 16,
+                    width: '100%', padding: '14px 20px', background: 'none', border: 'none',
+                    color, fontSize: 16, fontWeight: 500, cursor: 'pointer', textAlign: 'left',
                   }}>
-                    📋 Copy message
+                    <span style={{ fontSize: 20, opacity: 0.8 }}>{icon}</span> {label}
                   </button>
-                </>
-              );
-            })()}
+                );
+
+                return (
+                  <>
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>} label="Message info" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6M3 10l6-6"/></svg>} label="Reply" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>} label="Copy" onClick={() => navigator.clipboard?.writeText(msg?.text ?? '')} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>} label="React" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>} label="Download" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6M21 10l-6-6"/></svg>} label="Forward" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>} label="New business broadcast" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>} label="Pin" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>} label="Star" onClick={() => {}} />
+                    {canDelete && (
+                      <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>} label="Delete" onClick={() => handleDelete(menuMsg!)} color="#f87171" />
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </>
-      )}
 
       {/* ── Header ── */}
       <div style={{
