@@ -82,7 +82,7 @@ export interface Message {
   is_pinned: boolean;
   profiles?: Profile;
   message_reactions?: MessageReaction[];
-  reply_to?: { id: string; body: string; profiles?: { display_name: string } } | null;
+  reply_to?: { id: string; body: string; sender?: { display_name: string }; profiles?: { display_name: string } } | null;
 }
 
 // ─── Profile ─────────────────────────────────────────────────────
@@ -293,13 +293,18 @@ export const fetchOrCreateConversation = async (groupId: string): Promise<string
 export const fetchMessages = async (conversationId: string): Promise<Message[]> => {
   const { data, error } = await supabase
     .from('messages')
-    .select('*, profiles:sender_id(id, display_name, avatar_url, accent_color), message_reactions(*, profiles:user_id(id, display_name)), reply_to:messages!reply_to_id(id, body, profiles:sender_id(display_name))')
+    .select(`
+      id, conversation_id, sender_id, body, kind, reply_to_id, created_at, edited_at, deleted_at, is_pinned,
+      profiles:sender_id ( id, display_name, avatar_url, accent_color ),
+      message_reactions ( id, message_id, user_id, emoji, created_at, profiles:user_id ( id, display_name ) ),
+      reply_to:messages!reply_to_id ( id, body, sender:sender_id ( display_name ) )
+    `)
     .eq('conversation_id', conversationId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
-    .limit(50);
+    .limit(100);
   if (error) { console.error('fetchMessages:', error); return []; }
-  return data ?? [];
+  return (data ?? []) as unknown as Message[];
 };
 
 export const sendMessage = async (conversationId: string, body: string, kind: 'text' | 'image' | 'system' = 'text', replyToId?: string) => {

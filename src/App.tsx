@@ -35,11 +35,13 @@ interface AppCtx {
   messages: Message[];
   conversationId: string | null;
   reloadData: () => void;
+  refreshMessages: () => void;
 }
 const AppContext = createContext<AppCtx>({
   session: null, profile: null, group: null, meetup: null,
   members: [], rsvps: [], supplies: [], messages: [], conversationId: null,
   reloadData: () => { },
+  refreshMessages: () => { },
 });
 const useApp = () => useContext(AppContext);
 
@@ -387,7 +389,7 @@ function SuppliesTab() {
 // CHAT TAB
 // ─────────────────────────────────────────────
 function ChatTab() {
-  const { messages: ctxMessages, conversationId, session, members, group, meetup, reloadData } = useApp();
+  const { messages: ctxMessages, conversationId, session, members, group, meetup, reloadData, refreshMessages } = useApp();
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const [showAddMembers, setShowAddMembers] = useState(false);
@@ -432,13 +434,16 @@ function ChatTab() {
 
   const send = async () => {
     if (!text.trim()) return;
+    const textToSend = text.trim();
+    setText('');
+    const currentReplyTo = replyingTo;
+    setReplyingTo(null);
     if (conversationId) {
       playSound('pop');
-      await sendMessage(conversationId, text.trim(), 'text', replyingTo ?? undefined);
-      setReplyingTo(null);
-      await reloadData();
+      await sendMessage(conversationId, textToSend, 'text', currentReplyTo ?? undefined);
+      // Only refresh messages, not the full app data
+      refreshMessages();
     }
-    setText('');
   };
 
   useEffect(() => {
@@ -490,7 +495,7 @@ function ChatTab() {
   const handleDelete = async (msgId: string) => {
     setMenuMsg(null);
     await deleteMessage(msgId);
-    await reloadData();
+    refreshMessages();
   };
 
   // Read receipt helpers
@@ -577,7 +582,7 @@ function ChatTab() {
                     <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>} label={msg?.isPinned ? "Unpin" : "Pin"} onClick={async () => {
                       if (!msg) return;
                       msg.isPinned ? await unpinMessage(msg.id) : await pinMessage(msg.id);
-                      reloadData();
+                      refreshMessages();
                     }} />
                     <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>} label={starredMsgIds.has(msg?.id ?? '') ? "Unstar" : "Star"} onClick={async () => {
                       if (!msg) return;
@@ -670,7 +675,7 @@ function ChatTab() {
               {msg.text}
             </div>
           </div>
-          <button onClick={async () => { await unpinMessage(msg.id); reloadData(); }} style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 4 }}>
+          <button onClick={async () => { await unpinMessage(msg.id); refreshMessages(); }} style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 4 }}>
             ✕
           </button>
         </div>
@@ -699,7 +704,7 @@ function ChatTab() {
               if (myReaction) await removeMessageReaction(msg.id, myReaction.emoji);
               await addMessageReaction(msg.id, emoji);
             }
-            await reloadData();
+            refreshMessages();
           };
 
           return (
@@ -730,7 +735,7 @@ function ChatTab() {
                       background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 8, marginBottom: 6,
                       borderLeft: '3px solid rgba(255,255,255,0.3)', fontSize: 13, color: 'rgba(255,255,255,0.7)'
                     }}>
-                      <div style={{ fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 2 }}>{msg.replyTo.profiles?.display_name ?? 'someone'}</div>
+                      <div style={{ fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 2 }}>{(msg.replyTo as any).sender?.display_name ?? msg.replyTo.profiles?.display_name ?? 'someone'}</div>
                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.body}</div>
                     </div>
                   )}
@@ -1388,6 +1393,12 @@ export default function App() {
 
   useEffect(() => { loadData(); }, [session]);
 
+  // ── Refresh only messages (lightweight) ──
+  const refreshMessagesOnly = () => {
+    if (!conversationId) return;
+    fetchMessages(conversationId).then(setMessages);
+  };
+
   // ── Realtime subscriptions ──
   useEffect(() => {
     if (!meetup?.id) return;
@@ -1408,9 +1419,14 @@ export default function App() {
     if (!conversationId) return;
     const msgSub = supabase
       .channel(`messages:${conversationId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
         () => fetchMessages(conversationId).then(setMessages))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' },
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+        () => fetchMessages(conversationId).then(setMessages))
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'message_reactions' },
         () => fetchMessages(conversationId).then(setMessages))
       .subscribe();
     return () => { supabase.removeChannel(msgSub); };
@@ -1437,7 +1453,7 @@ export default function App() {
   }
 
   // ── Main App ──
-  const ctx: AppCtx = { session, profile, group, meetup, members, rsvps, supplies, messages, conversationId, reloadData: loadData };
+  const ctx: AppCtx = { session, profile, group, meetup, members, rsvps, supplies, messages, conversationId, reloadData: loadData, refreshMessages: refreshMessagesOnly };
 
   return (
     <AppContext.Provider value={ctx}>
