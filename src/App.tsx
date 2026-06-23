@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { useAnimate } from 'motion/react';
 import './index.css';
 import logoSrc  from './assets/logo.png';
@@ -14,6 +14,34 @@ import supPapers  from './assets/sup_papers.png';
 import supLighter from './assets/sup_lighter.png';
 import supSnacks  from './assets/sup_snacks.png';
 import supDrinks  from './assets/sup_drinks.png';
+
+import { supabase, signOut } from './lib/supabase';
+import { upsertProfile, fetchMyGroup, fetchLatestMeetup, fetchGroupMembers, fetchRsvps, upsertRsvp, fetchSupplies, claimSupply, unclaimSupply, addSupply, fetchOrCreateConversation, fetchMessages, sendMessage } from './lib/queries';
+import type { Profile, Group, Meetup, Rsvp, Supply, Message, Membership } from './lib/queries';
+import AuthPage from './pages/AuthPage';
+import CreateGroupPage from './pages/CreateGroupPage';
+import CreateMeetupPage from './pages/CreateMeetupPage';
+import type { Session } from '@supabase/supabase-js';
+
+// ─── App Context ────────────────────────────────────────────────
+interface AppCtx {
+  session: Session | null;
+  profile: Profile | null;
+  group: Group | null;
+  meetup: Meetup | null;
+  members: Membership[];
+  rsvps: Rsvp[];
+  supplies: Supply[];
+  messages: Message[];
+  conversationId: string | null;
+  reloadData: () => void;
+}
+const AppContext = createContext<AppCtx>({
+  session: null, profile: null, group: null, meetup: null,
+  members: [], rsvps: [], supplies: [], messages: [], conversationId: null,
+  reloadData: () => {},
+});
+const useApp = () => useContext(AppContext);
 
 // ─────────────────────────────────────────────
 // SVG Icons
@@ -104,32 +132,69 @@ const Ring = ({ pct }: { pct: number }) => {
 // MEETUP TAB
 // ─────────────────────────────────────────────
 function MeetupTab() {
-  const [rsvp, setRsvp] = useState<'in'|'out'|null>(null);
+  const { meetup, rsvps, members, session, reloadData } = useApp();
+  const myRsvp = rsvps.find(r => r.user_id === session?.user?.id);
+  const [rsvpLoading, setRsvpLoading] = useState(false);
+
+  const handleRsvp = async (status: 'in' | 'out') => {
+    if (!meetup) return;
+    setRsvpLoading(true);
+    await upsertRsvp(meetup.id, status);
+    await reloadData();
+    setRsvpLoading(false);
+  };
+
+  // Format date/time from meetup.start_at
+  const startDate = meetup?.start_at ? new Date(meetup.start_at) : null;
+  const dateStr = startDate ? startDate.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : 'TBD';
+  const timeStr = startDate ? startDate.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : 'TBD';
+
+  // Map rsvp statuses to members
+  const membersWithStatus = members.map(m => {
+    const rsvp = rsvps.find(r => r.user_id === m.user_id);
+    const isMe = m.user_id === session?.user?.id;
+    return {
+      id: m.user_id,
+      name: isMe ? 'You' : (m.profiles?.display_name ?? 'Member'),
+      color: '#21C55D',
+      avatar: m.profiles?.avatar_url ?? avYou,
+      isHost: m.role === 'owner',
+      status: rsvp?.status === 'in' ? "I'm In" : rsvp?.status === 'out' ? "Can't" : 'Maybe',
+      pillCls: rsvp?.status === 'in' ? 'pill-in' : rsvp?.status === 'out' ? 'pill-cant' : 'pill-host',
+    };
+  });
+
+  // Fallback to demo data when no real meetup loaded yet
+  const demoMode = !meetup;
+  const displayMembers = demoMode ? MEMBERS : membersWithStatus;
+
   return (
     <div style={{ animation:'fade-in .2s ease' }}>
       {/* Event Card */}
       <div className="card">
         <div style={{ display:'flex', gap:14, alignItems:'flex-start' }}>
           <div style={{ flex:1 }}>
-            <div className="meetup-title">Smoke Sesh Tonight 🔥</div>
+            <div className="meetup-title">{meetup?.title ?? 'Smoke Sesh Tonight 🔥'}</div>
             <div className="meetup-info-row">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9BB09C" strokeWidth="2" strokeLinecap="round">
                 <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>
               </svg>
-              Fri, May 24
+              {dateStr}
             </div>
             <div className="meetup-info-row">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9BB09C" strokeWidth="2" strokeLinecap="round">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
               </svg>
-              8:00 PM
+              {timeStr}
             </div>
-            <div className="meetup-info-row">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="#5A7C5C">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-              </svg>
-              123 Greenway Ave,<br/>Los Angeles, CA
-            </div>
+            {(meetup?.place_label || demoMode) && (
+              <div className="meetup-info-row">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="#5A7C5C">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                </svg>
+                {meetup?.place_label ?? '123 Greenway Ave,\nLos Angeles, CA'}
+              </div>
+            )}
           </div>
           <div className="nova-badge">
             <div style={{ fontSize:28, lineHeight:1, marginBottom:4 }}>🌿</div>
@@ -141,7 +206,7 @@ function MeetupTab() {
         <button
           className="btn-3d-green"
           style={{ marginTop:20 }}
-          onClick={() => window.open('https://maps.google.com', '_blank')}
+          onClick={() => window.open(`https://maps.google.com/maps?q=${encodeURIComponent(meetup?.place_label ?? '123 Greenway Ave, Los Angeles')}`, '_blank')}
         >
           Open in Maps
           <span className="btn-arrow-badge">
@@ -158,27 +223,34 @@ function MeetupTab() {
         <div className="rsvp-row">
           <button
             className="btn-3d-green"
-            style={{ opacity: rsvp === 'out' ? 0.6 : 1 }}
-            onClick={() => setRsvp('in')}
+            style={{ opacity: myRsvp?.status === 'out' ? 0.6 : 1 }}
+            onClick={() => handleRsvp('in')}
+            disabled={rsvpLoading}
           >
             I'm In <span className="btn-check-badge">✓</span>
           </button>
           <button
             className="btn-3d-dark"
-            onClick={() => setRsvp('out')}
+            onClick={() => handleRsvp('out')}
+            disabled={rsvpLoading}
           >
             Can't Make It <span className="btn-x-badge">✕</span>
           </button>
         </div>
+        {myRsvp && (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted)', textAlign: 'center', fontWeight: 600 }}>
+            Your RSVP: <span style={{ color: myRsvp.status === 'in' ? 'var(--green-main)' : '#F87171' }}>{myRsvp.status === 'in' ? "You're in! 🎉" : "Can't make it 😢"}</span>
+          </div>
+        )}
       </div>
 
       {/* Who's Coming */}
       <div className="card">
         <div className="who-coming-label">
-          Who's coming <span>({MEMBERS.length})</span>
+          Who's coming <span>({displayMembers.length})</span>
         </div>
         <div className="avatar-row hide-scroll">
-          {MEMBERS.map(m => (
+          {displayMembers.map((m: any) => (
             <div className="avatar-item" key={m.id}>
               <div className="avatar-circle" style={{ background: m.color }}>
                 <img src={m.avatar} alt={m.name} />
@@ -204,7 +276,8 @@ const TIPS = [
   "If you're bringing snacks, try to bring something sweet and something salty. 🥨"
 ];
 
-type SupplyItem = {
+// SupplyItem type for demo supplies only
+export type SupplyItem = {
   id: string;
   name: string;
   imgSrc?: string;
@@ -213,8 +286,12 @@ type SupplyItem = {
 };
 
 function SuppliesTab() {
-  const [supplies, setSupplies] = useState<SupplyItem[]>(INIT_SUPPLIES);
+  const { supplies: ctxSupplies, meetup, reloadData } = useApp();
   const [tipIdx, setTipIdx] = useState(0);
+
+  // Use real supplies if available, else demo supplies
+  const demoMode = !meetup;
+  const supplies = demoMode ? INIT_SUPPLIES : ctxSupplies;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -223,17 +300,25 @@ function SuppliesTab() {
     return () => clearInterval(timer);
   }, []);
 
-  const covered = supplies.filter(s => s.by).length;
-  const pct = Math.round((covered / supplies.length) * 100);
+  const covered = supplies.filter((s: any) => s.by || s.claimed_by).length;
+  const pct = Math.round((covered / Math.max(supplies.length, 1)) * 100);
 
-  const toggle = (id: string) =>
-    setSupplies(prev => prev.map(s => s.id === id ? { ...s, by: s.by ? null : 'You' } : s));
+  const toggle = async (s: any) => {
+    if (demoMode) return; // demo mode only — no DB
+    if (s.claimed_by) {
+      await unclaimSupply(s.id);
+    } else {
+      await claimSupply(s.id);
+    }
+    await reloadData();
+  };
 
-  const addCustomSupply = () => {
+  const addCustomSupply = async () => {
     const name = window.prompt("Enter new supply name:");
     if (name && name.trim()) {
-      const id = name.trim().toLowerCase().replace(/\s+/g, '-');
-      setSupplies(prev => [...prev, { id, name: name.trim(), icon: '📦', imgSrc: undefined, by: null }]);
+      if (demoMode) return;
+      await addSupply(meetup!.id, name.trim());
+      await reloadData();
     }
   };
 
@@ -253,7 +338,7 @@ function SuppliesTab() {
          <div>
             <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Session Supplies</div>
             <div style={{ fontSize:13, color:'var(--muted)', fontWeight:500, lineHeight: 1.4, paddingRight: 10 }}>
-              Almost there! A few essentials left.
+              {pct === 100 ? 'All covered! Let\'s go! 🎉' : 'Almost there! A few essentials left.'}
             </div>
          </div>
          <Ring pct={pct} />
@@ -262,35 +347,40 @@ function SuppliesTab() {
       {/* Supplies List */}
       <div>
         <div style={{ fontSize:15, fontWeight:800, color:'var(--txt2)', marginBottom:12, paddingLeft:4 }}>Checklist</div>
-        {supplies.map(s => (
-          <div className="supply-row" key={s.id}>
-            <div className="supply-icon" style={s.imgSrc ? { padding:0, background:'none', border:'none', boxShadow:'none' } : {}}>
-              {s.imgSrc ? <img src={s.imgSrc} alt={s.name} style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:'50%', filter:'drop-shadow(0 4px 6px rgba(0,0,0,0.5))'}} /> : s.icon}
-            </div>
-            <div style={{ flex:1 }}>
-              <div className="supply-name">{s.name}</div>
-              <div className="supply-by">
-                {s.by
-                  ? <>Claimed by <span className="claimed">{s.by}</span></>
-                  : <span className="needed">Still needed</span>
-                }
+        {supplies.map((s: any) => {
+          const isClaimed = demoMode ? !!s.by : !!s.claimed_by;
+          const claimedByName = demoMode ? s.by : (s.profiles?.display_name ?? (s.claimed_by ? 'Someone' : null));
+          const imgSrc = s.imgSrc;
+          return (
+            <div className="supply-row" key={s.id}>
+              <div className="supply-icon" style={imgSrc ? { padding:0, background:'none', border:'none', boxShadow:'none' } : {}}>
+                {imgSrc ? <img src={imgSrc} alt={s.name} style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:'50%', filter:'drop-shadow(0 4px 6px rgba(0,0,0,0.5))'}} /> : (s.icon ?? '📦')}
               </div>
+              <div style={{ flex:1 }}>
+                <div className="supply-name">{s.name}</div>
+                <div className="supply-by">
+                  {isClaimed
+                    ? <><span>Claimed by </span><span className="claimed">{claimedByName}</span></>
+                    : <span className="needed">Still needed</span>
+                  }
+                </div>
+              </div>
+              {isClaimed
+                ? <button className="supply-check-btn" onClick={() => toggle(s)}>✓</button>
+                : <button className="supply-add-btn"   onClick={() => toggle(s)}>+</button>
+              }
             </div>
-            {s.by
-              ? <button className="supply-check-btn" onClick={() => toggle(s.id)}>✓</button>
-              : <button className="supply-add-btn"   onClick={() => toggle(s.id)}>+</button>
-            }
-          </div>
-        ))}
+          );
+        })}
 
         <button className="btn-3d-dark" style={{ marginTop: 10, marginBottom: 24 }} onClick={addCustomSupply}>
            + Add Custom Supply
         </button>
 
         {/* Tip Card Popup */}
-        <div className="card" style={{ 
-          padding:'16px', 
-          background: 'linear-gradient(145deg, rgba(34, 197, 94, 0.1), rgba(16, 42, 20, 0.4))', 
+        <div className="card" style={{
+          padding:'16px',
+          background: 'linear-gradient(145deg, rgba(34, 197, 94, 0.1), rgba(16, 42, 20, 0.4))',
           borderColor: 'rgba(34, 197, 94, 0.2)',
           display:'flex', gap: 14, alignItems:'flex-start',
           marginBottom: 16
@@ -313,25 +403,41 @@ function SuppliesTab() {
   );
 }
 
+
 // ─────────────────────────────────────────────
 // CHAT TAB
 // ─────────────────────────────────────────────
 function ChatTab() {
-  const [msgs, setMsgs] = useState(INIT_MSGS);
+  const { messages: ctxMessages, conversationId, session } = useApp();
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Fallback demo messages if no conversation yet
+  const msgs = (!conversationId || ctxMessages.length === 0) ? INIT_MSGS : ctxMessages.map(m => ({
+    id: m.id,
+    from: m.sender_id === session?.user?.id ? 'you' : m.sender_id,
+    text: m.body,
+    time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    mine: m.sender_id === session?.user?.id,
+    senderName: m.profiles?.display_name,
+    senderAvatar: m.profiles?.avatar_url,
+    senderColor: m.profiles?.accent_color ?? '#21C55D',
+  }));
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [msgs]);
 
   const [showAddMembers, setShowAddMembers] = useState(false);
 
-  const send = () => {
+  const send = async () => {
     if (!text.trim()) return;
-    setMsgs(p => [...p, { id:p.length+1, from:'you', text:text.trim(), time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), mine:true }]);
+    if (conversationId) {
+      await sendMessage(conversationId, text.trim());
+    }
     setText('');
   };
 
-  const memberOf = (id: string) => MEMBERS.find(m => m.id === id)!;
+  // No-op to satisfy linter — only used for demo fallback rendering
+  void ((id: string) => MEMBERS.find(m => m.id === id) ?? MEMBERS[0]);
 
   return (
     // Flex layout to fill remaining space under the main topbar
@@ -417,18 +523,26 @@ function ChatTab() {
         className="hide-scroll"
         style={{ flex:1, overflowY:'auto', padding:'16px 14px 10px' }}
       >
-        {msgs.map(msg => {
-          const m = memberOf(msg.from);
+        {msgs.map((msg: any) => {
+          const isMe = msg.mine;
+          // Try to find in MEMBERS first (demo), else use real profile data
+          const demoMember = MEMBERS.find(m => m.id === msg.from);
+          const avatar = msg.senderAvatar ?? demoMember?.avatar ?? avYou;
+          const name = msg.senderName ?? demoMember?.name ?? 'Member';
+          const color = msg.senderColor ?? demoMember?.color ?? '#21C55D';
           return (
-            <div key={msg.id} className={`chat-row${msg.mine?' me':''}`}>
-              {!msg.mine && (
-                <div className="chat-av" style={{ background:m.color }}>
-                  <img src={m.avatar} alt={m.name}/>
+            <div key={msg.id} className={`chat-row${isMe?' me':''}`}>
+              {!isMe && (
+                <div className="chat-av" style={{ background: color }}>
+                  {avatar.startsWith('http') ?
+                    <img src={avatar} alt={name} referrerPolicy="no-referrer"/> :
+                    <img src={avatar} alt={name}/>
+                  }
                 </div>
               )}
               <div className="chat-bubble-wrap">
-                {!msg.mine && <div className="chat-sender">{m.name}</div>}
-                <div className={`chat-bubble ${msg.mine?'mine':'theirs'}`}>{msg.text}</div>
+                {!isMe && <div className="chat-sender">{name}</div>}
+                <div className={`chat-bubble ${isMe?'mine':'theirs'}`}>{msg.text}</div>
                 <div className="chat-time">{msg.time}</div>
               </div>
             </div>
@@ -485,8 +599,11 @@ function ChatTab() {
 // ─────────────────────────────────────────────
 // PROFILE TAB
 // ─────────────────────────────────────────────
-function ProfileTab() {
-  const me = MEMBERS[0];
+function ProfileTab({ onSignOut: _onSignOut }: { onSignOut?: () => void }) {
+  const { profile } = useApp();
+  const displayName = profile?.display_name ?? 'You';
+  const avatarUrl = profile?.avatar_url ?? avYou;
+  const statusText = profile?.status_text ?? 'Keep it chill & positive 🌿';
   const [soundsEnabled, setSoundsEnabled] = useState(() => localStorage.getItem('soundsEnabled') !== 'false');
 
   const toggleSounds = () => {
@@ -501,7 +618,11 @@ function ProfileTab() {
       <div className="card" style={{ padding:'22px 20px', display:'flex', alignItems:'center', gap:18, marginBottom: 0 }}>
         <div style={{ position:'relative' }}>
           <div className="profile-av" style={{ width: 88, height: 88, border:'3px solid var(--accent)', boxShadow:'0 0 16px rgba(33,197,93,0.25)' }}>
-            <img src={me.avatar} alt="You"/>
+            {avatarUrl.startsWith('http') ? (
+              <img src={avatarUrl} alt={displayName} referrerPolicy="no-referrer"/>
+            ) : (
+              <img src={avatarUrl} alt={displayName}/>
+            )}
           </div>
           <div style={{
             position:'absolute', bottom:-2, right:-4,
@@ -517,10 +638,10 @@ function ProfileTab() {
         </div>
         <div style={{ flex:1 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ fontSize:24, fontWeight:800 }}>You</div>
+            <div style={{ fontSize:24, fontWeight:800 }}>{displayName}</div>
             <span className="profile-host-tag" style={{ padding:'3px 10px', fontSize:11, letterSpacing:0.3 }}>Host</span>
           </div>
-          <div style={{ fontSize:13, color:'var(--txt2)', marginTop:6, fontWeight:500 }}>Keep it chill & positive 🌿</div>
+          <div style={{ fontSize:13, color:'var(--txt2)', marginTop:6, fontWeight:500 }}>{statusText}</div>
           <div style={{ fontSize:13, color:'var(--muted)', marginTop:3 }}>All love, no drama.</div>
 
           <div style={{ marginTop:16 }}>
@@ -818,59 +939,165 @@ function AddMembersModal({ open, onClose }: { open:boolean; onClose:()=>void }) 
   )
 }
 
+// ─── Main App with Auth Guard ────────────────────────────────────
 export default function App() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined); // undefined = loading
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [group, setGroup] = useState<Group | null>(null);
+  const [meetup, setMeetup] = useState<Meetup | null>(null);
+  const [members, setMembers] = useState<Membership[]>([]);
+  const [rsvps, setRsvps] = useState<Rsvp[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [setupStep, setSetupStep] = useState<'group' | 'meetup' | 'done'>('done');
+
   const [tab, setTab] = useState<TabId>('meetup');
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
 
-  return (
-    <div className="app-shell">
-      <GlobalSmokeSplash />
-      {/* Slide-out drawers */}
-      <MenuDrawer   open={menuOpen}   onClose={() => setMenuOpen(false)}/>
-      <NotifsPanel  open={notifsOpen} onClose={() => setNotifsOpen(false)}/>
+  // ── Auth listener ──
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
-      {/* Top bar — menu | centered logo | bell (always visible) */}
-      <header className="topbar">
-        <button className="topbar-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M3 6h18M3 12h18M3 18h18"/>
-          </svg>
-        </button>
-        <img src={logoSrc} alt="Daily Essentials" className="topbar-logo"/>
-        <button className="topbar-btn notif" aria-label="Notifications" onClick={() => setNotifsOpen(true)}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
-          </svg>
-        </button>
-      </header>
+  // ── Load data when session changes ──
+  const loadData = async () => {
+    if (!session) return;
+    // Profile
+    const p = await upsertProfile(session);
+    setProfile(p ?? null);
+    // Group
+    const g = await fetchMyGroup();
+    setGroup(g);
+    if (!g) { setSetupStep('group'); return; }
+    // Members
+    const mbs = await fetchGroupMembers(g.id);
+    setMembers(mbs);
+    // Meetup
+    const m = await fetchLatestMeetup(g.id);
+    setMeetup(m);
+    if (!m) { setSetupStep('meetup'); }
+    else {
+      setSetupStep('done');
+      // RSVPs + Supplies + Chat
+      const [r, s, convId] = await Promise.all([
+        fetchRsvps(m.id),
+        fetchSupplies(m.id),
+        fetchOrCreateConversation(g.id),
+      ]);
+      setRsvps(r);
+      setSupplies(s);
+      setConversationId(convId);
+      if (convId) {
+        const msgs = await fetchMessages(convId);
+        setMessages(msgs);
+      }
+    }
+  };
 
-      <div className={`scroll-body${tab==='chat'?' no-scroll':''}`}>
-        {/* Tab content */}
-        {tab === 'meetup'   && <MeetupTab/>}
-        {tab === 'supplies' && <SuppliesTab/>}
-        {tab === 'profile'  && <ProfileTab/>}
+  useEffect(() => { loadData(); }, [session]);
+
+  // ── Realtime subscriptions ──
+  useEffect(() => {
+    if (!meetup?.id) return;
+    const rsvpSub = supabase
+      .channel(`rsvps:${meetup.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rsvps', filter: `meetup_id=eq.${meetup.id}` },
+        () => fetchRsvps(meetup.id).then(setRsvps))
+      .subscribe();
+    const supplySub = supabase
+      .channel(`supplies:${meetup.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'supplies', filter: `meetup_id=eq.${meetup.id}` },
+        () => fetchSupplies(meetup.id).then(setSupplies))
+      .subscribe();
+    return () => { supabase.removeChannel(rsvpSub); supabase.removeChannel(supplySub); };
+  }, [meetup?.id]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+    const msgSub = supabase
+      .channel(`messages:${conversationId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+        () => fetchMessages(conversationId).then(setMessages))
+      .subscribe();
+    return () => { supabase.removeChannel(msgSub); };
+  }, [conversationId]);
+
+  // ── Loading state ──
+  if (session === undefined) {
+    return (
+      <div style={{ minHeight:'100vh', display:'grid', placeItems:'center', background:'#050e07' }}>
+        <div style={{ fontSize: 40, animation: 'sparkle 1s infinite' }}>🌿</div>
       </div>
+    );
+  }
 
-      {/* Chat is rendered outside scroll-body but uses flex: 1 to fill space below topbar */}
-      {tab === 'chat' && <ChatTab/>}
+  // ── Not signed in ──
+  if (!session) return <AuthPage />;
 
-      {/* Bottom Nav */}
-      <nav className="bottom-nav" aria-label="Main navigation">
-        <div className="bottom-nav-inner">
-          {TABS.map(({ id, label, Icon }) => (
-            <button key={id} id={`nav-${id}`}
-              className={`nav-btn${tab===id?' active':''}`}
-              onClick={() => setTab(id)}
-              aria-current={tab===id ? 'page' : undefined}
-            >
-              <Icon active={tab===id}/>
-              {label}
-            </button>
-          ))}
+  // ── Setup flows ──
+  if (setupStep === 'group') {
+    return <CreateGroupPage onGroupCreated={() => { setSetupStep('meetup'); loadData(); }} />;
+  }
+  if (setupStep === 'meetup' && group) {
+    return <CreateMeetupPage groupId={group.id} onCreated={() => { setSetupStep('done'); loadData(); }} onSkip={() => setSetupStep('done')} />;
+  }
+
+  // ── Main App ──
+  const ctx: AppCtx = { session, profile, group, meetup, members, rsvps, supplies, messages, conversationId, reloadData: loadData };
+
+  return (
+    <AppContext.Provider value={ctx}>
+      <div className="app-shell">
+        <GlobalSmokeSplash />
+        <MenuDrawer   open={menuOpen}   onClose={() => setMenuOpen(false)}/>
+        <NotifsPanel  open={notifsOpen} onClose={() => setNotifsOpen(false)}/>
+
+        <header className="topbar">
+          <button className="topbar-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+          </button>
+          <img src={logoSrc} alt="Daily Essentials" className="topbar-logo"/>
+          <button className="topbar-btn notif" aria-label="Notifications" onClick={() => setNotifsOpen(true)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
+            </svg>
+          </button>
+        </header>
+
+        <div className={`scroll-body${tab==='chat'?' no-scroll':''}`}>
+          {tab === 'meetup'   && <MeetupTab/>}
+          {tab === 'supplies' && <SuppliesTab/>}
+          {tab === 'profile'  && <ProfileTab onSignOut={signOut}/>}
         </div>
-      </nav>
-    </div>
+
+        {tab === 'chat' && <ChatTab/>}
+
+        <nav className="bottom-nav" aria-label="Main navigation">
+          <div className="bottom-nav-inner">
+            {TABS.map(({ id, label, Icon }) => (
+              <button key={id} id={`nav-${id}`}
+                className={`nav-btn${tab===id?' active':''}`}
+                onClick={() => setTab(id)}
+                aria-current={tab===id ? 'page' : undefined}
+              >
+                <Icon active={tab===id}/>
+                {label}
+              </button>
+            ))}
+          </div>
+        </nav>
+      </div>
+    </AppContext.Provider>
   );
 }
 
