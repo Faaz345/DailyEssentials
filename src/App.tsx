@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { useAnimate } from 'motion/react';
 import { SplashButton } from './components/SplashButton';
+import { EditProfileModal } from './components/EditProfileModal';
 import { playSound, getSoundsEnabled, setSoundsEnabled } from './lib/sounds';
 import './index.css';
 import logoSrc  from './assets/logo.png';
@@ -18,7 +19,12 @@ import supSnacks  from './assets/sup_snacks.png';
 import supDrinks  from './assets/sup_drinks.png';
 
 import { supabase, signOut } from './lib/supabase';
-import { upsertProfile, fetchMyGroup, fetchLatestMeetup, fetchGroupMembers, fetchRsvps, upsertRsvp, fetchSupplies, claimSupply, unclaimSupply, addSupply, fetchOrCreateConversation, fetchMessages, sendMessage } from './lib/queries';
+import { 
+  upsertProfile, fetchMyGroup, fetchLatestMeetup, 
+  fetchGroupMembers, fetchSupplies, fetchRsvps, claimSupply, unclaimSupply, 
+  addSupply, upsertRsvp, fetchOrCreateConversation, fetchMessages, sendMessage,
+  fetchProfileStats, addMessageReaction, removeMessageReaction
+} from './lib/queries';
 import type { Profile, Group, Meetup, Rsvp, Supply, Message, Membership } from './lib/queries';
 import AuthPage from './pages/AuthPage';
 import CreateGroupPage from './pages/CreateGroupPage';
@@ -441,6 +447,56 @@ function ChatTab() {
     setText('');
   };
 
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const channelRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!conversationId || !session?.user) return;
+    
+    // Create a dedicated channel for presence & typing
+    const channel = supabase.channel(`chat_sync:${conversationId}`, {
+      config: { presence: { key: session.user.id } }
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        setOnlineUsers(Object.keys(state));
+      })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        setTypingUsers(prev => {
+          if (!prev.includes(payload.user_id)) return [...prev, payload.user_id];
+          return prev;
+        });
+        setTimeout(() => {
+          setTypingUsers(prev => prev.filter(id => id !== payload.user_id));
+        }, 3000);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
+      
+    channelRef.current = channel;
+    return () => { supabase.removeChannel(channel); channelRef.current = null; };
+  }, [conversationId, session?.user]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      send();
+    } else {
+      if (channelRef.current && session?.user) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { user_id: session.user.id }
+        });
+      }
+    }
+  };
+
   return (
     <div style={{
       flex: 1,
@@ -483,7 +539,7 @@ function ChatTab() {
           </div>
           <div style={{ fontSize:12, color:'var(--muted)', marginTop:2, display:'flex', alignItems:'center', gap:5, fontWeight:500 }}>
             <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--green-main)', display:'inline-block', boxShadow:'0 0 6px var(--green-main)' }}/>
-            5 members, 3 online
+            {onlineUsers.length > 0 ? `${onlineUsers.length} online` : 'Connecting...'}
           </div>
         </div>
         <button className="chat-hdr-btn green">
@@ -523,8 +579,22 @@ function ChatTab() {
           const avatar = msg.senderAvatar ?? demoMember?.avatar ?? avYou;
           const name = msg.senderName ?? demoMember?.name ?? 'Member';
           const color = msg.senderColor ?? demoMember?.color ?? '#21C55D';
+          const rawMsg = ctxMessages.find(m => m.id === msg.id);
+          const reactions = rawMsg?.message_reactions || [];
+          const myReaction = reactions.find(r => r.user_id === session?.user?.id);
+
+          const toggleReaction = async (emoji: string) => {
+            playSound('click');
+            if (myReaction?.emoji === emoji) {
+              await removeMessageReaction(msg.id, emoji);
+            } else {
+              if (myReaction) await removeMessageReaction(msg.id, myReaction.emoji);
+              await addMessageReaction(msg.id, emoji);
+            }
+          };
+
           return (
-            <div key={msg.id} className={`chat-row${isMe?' me':''}`}>
+            <div key={msg.id} className={`chat-row${isMe?' me':''}`} style={{ position: 'relative' }}>
               {!isMe && (
                 <div className="chat-av" style={{ background: color }}>
                   {avatar.startsWith('http') ?
@@ -535,12 +605,52 @@ function ChatTab() {
               )}
               <div className="chat-bubble-wrap">
                 {!isMe && <div className="chat-sender">{name}</div>}
-                <div className={`chat-bubble ${isMe?'mine':'theirs'}`}>{msg.text}</div>
+                
+                <div style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                  <div className={`chat-bubble ${isMe?'mine':'theirs'}`} onDoubleClick={() => toggleReaction('🔥')}>
+                    {msg.text}
+                  </div>
+                  
+                  {/* Quick Reaction Button */}
+                  {conversationId && (
+                    <button 
+                      onClick={() => toggleReaction('🔥')}
+                      style={{ opacity: 0.5, cursor: 'pointer', background: 'none', border: 'none', fontSize: 16 }}
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+
+                {reactions.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4, paddingLeft: isMe ? 0 : 4, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                    {reactions.map(r => (
+                      <div key={r.id} style={{ 
+                        background: 'rgba(255,255,255,0.1)', padding: '2px 6px', 
+                        borderRadius: 10, fontSize: 12, border: '1px solid rgba(255,255,255,0.05)',
+                        display: 'flex', alignItems: 'center', gap: 4
+                      }}>
+                        {r.emoji}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="chat-time">{msg.time}</div>
               </div>
             </div>
           );
         })}
+
+        {typingUsers.length > 0 && (
+          <div className="chat-row" style={{ animation: 'fade-in 0.2s ease' }}>
+             <div className="chat-bubble-wrap">
+                <div className="chat-bubble theirs" style={{ fontSize: 12, padding: '8px 12px', fontStyle: 'italic', opacity: 0.7 }}>
+                  Someone is typing...
+                </div>
+             </div>
+          </div>
+        )}
+
         <div ref={endRef}/>
       </div>
 
@@ -560,7 +670,7 @@ function ChatTab() {
               placeholder="Type a message..."
               value={text}
               onChange={e => setText(e.target.value)}
-              onKeyDown={e => e.key==='Enter' && send()}
+              onKeyDown={handleKeyDown}
             />
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7E9C80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, cursor:'pointer' }}>
               <circle cx="12" cy="12" r="10"></circle>
@@ -582,8 +692,14 @@ function ChatTab() {
 // PROFILE TAB
 // ─────────────────────────────────────────────
 function ProfileTab() {
-  const { profile, group } = useApp();
+  const { profile, group, reloadData } = useApp();
   const [soundsOn, setSoundsOn] = useState(getSoundsEnabled());
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [stats, setStats] = useState({ meetupsHosted: 0, sessionsAttended: 0 });
+
+  useEffect(() => {
+    fetchProfileStats().then(s => setStats(s));
+  }, [profile]);
 
   const handleToggleSounds = () => {
     const newVal = !soundsOn;
@@ -645,9 +761,24 @@ function ProfileTab() {
           </div>
           
           <div style={{ marginTop: 16 }}>
-            <SplashButton className="btn-3d-dark" sound="whoosh" style={{ width: '100%' }}>Edit Profile</SplashButton>
+            <SplashButton className="btn-3d-dark" sound="whoosh" style={{ width: '100%' }} onClick={() => setEditModalOpen(true)}>Edit Profile</SplashButton>
           </div>
         </div>
+      </div>
+
+      <div className="card" style={{ display:'flex', justifyContent:'space-between', padding:'18px 12px', marginBottom: 0 }}>
+        {[
+          { icon:'👥', count: stats.meetupsHosted, label:'Meetups\nHosted' },
+          { icon:'🌿', count: stats.sessionsAttended, label:'Sessions\nAttended' },
+          { icon:'🔥', count: Math.round(stats.sessionsAttended * 15.4), label:'Good Vibes\nEarned' },
+          { icon:'🏆', count: Math.floor(stats.sessionsAttended / 5), label:'Badges\nUnlocked' },
+        ].map((stat, i) => (
+          <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, textAlign:'center' }}>
+            <div style={{ fontSize:20, marginBottom:6, filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>{stat.icon}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:'var(--txt)', lineHeight:1 }}>{stat.count}</div>
+            <div style={{ fontSize:10, color:'var(--txt2)', fontWeight:500, lineHeight:1.3, marginTop:5, whiteSpace:'pre-line' }}>{stat.label}</div>
+          </div>
+        ))}
       </div>
 
       <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -668,6 +799,14 @@ function ProfileTab() {
       <SplashButton className="btn-3d-dark" sound="crunch" style={{ width: '100%', marginTop: 24, color: '#f87171' }} onClick={signOut}>
          Log Out
       </SplashButton>
+
+      <EditProfileModal 
+        open={editModalOpen} 
+        onClose={() => setEditModalOpen(false)} 
+        currentName={displayName} 
+        currentStatus={statusText} 
+        onSaved={reloadData} 
+      />
     </div>
   );
 }

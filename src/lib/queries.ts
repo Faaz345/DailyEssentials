@@ -60,6 +60,15 @@ export interface Supply {
   profiles?: Profile;
 }
 
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+  profiles?: Profile;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
@@ -71,6 +80,7 @@ export interface Message {
   edited_at: string | null;
   deleted_at: string | null;
   profiles?: Profile;
+  message_reactions?: MessageReaction[];
 }
 
 // ─── Profile ─────────────────────────────────────────────────────
@@ -102,6 +112,33 @@ export const updateProfile = async (updates: Partial<Profile>) => {
   if (!user) return;
   const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
   if (error) console.error('updateProfile:', error);
+};
+
+export const uploadAvatar = async (file: File): Promise<string | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  
+  const fileExt = file.name.split('.').pop();
+  const filePath = `${user.id}/${Math.random()}.${fileExt}`;
+  
+  const { error } = await supabase.storage.from('avatars').upload(filePath, file);
+  if (error) { console.error('uploadAvatar:', error); return null; }
+  
+  const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
+  return publicUrl;
+};
+
+export const fetchProfileStats = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { meetupsHosted: 0, sessionsAttended: 0 };
+  
+  const { count: hostedCount } = await supabase.from('meetups').select('*', { count: 'exact', head: true }).eq('created_by', user.id);
+  const { count: attendedCount } = await supabase.from('rsvps').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'in');
+  
+  return {
+    meetupsHosted: hostedCount ?? 0,
+    sessionsAttended: attendedCount ?? 0
+  };
 };
 
 // ─── Groups ──────────────────────────────────────────────────────
@@ -262,7 +299,7 @@ export const fetchOrCreateConversation = async (groupId: string): Promise<string
 export const fetchMessages = async (conversationId: string): Promise<Message[]> => {
   const { data, error } = await supabase
     .from('messages')
-    .select('*, profiles:sender_id(id, display_name, avatar_url, accent_color)')
+    .select('*, profiles:sender_id(id, display_name, avatar_url, accent_color), message_reactions(*, profiles:user_id(id, display_name))')
     .eq('conversation_id', conversationId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
@@ -275,4 +312,16 @@ export const sendMessage = async (conversationId: string, body: string, kind: 't
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, body, kind });
+};
+
+export const addMessageReaction = async (messageId: string, emoji: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('message_reactions').insert({ message_id: messageId, user_id: user.id, emoji });
+};
+
+export const removeMessageReaction = async (messageId: string, emoji: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('message_reactions').delete().match({ message_id: messageId, user_id: user.id, emoji });
 };
