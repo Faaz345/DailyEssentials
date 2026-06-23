@@ -582,7 +582,7 @@ function ChatTab() {
 // PROFILE TAB
 // ─────────────────────────────────────────────
 function ProfileTab() {
-  const { session, profile, group } = useApp();
+  const { profile, group } = useApp();
   const [soundsOn, setSoundsOn] = useState(getSoundsEnabled());
 
   const handleToggleSounds = () => {
@@ -1010,7 +1010,7 @@ export default function App() {
         <div className={`scroll-body${tab==='chat'?' no-scroll':''}`}>
           {tab === 'meetup'   && <MeetupTab/>}
           {tab === 'supplies' && <SuppliesTab/>}
-          {tab === 'profile'  && <ProfileTab onSignOut={signOut}/>}
+          {tab === 'profile' && <ProfileTab />}
         </div>
 
         {tab === 'chat' && <ChatTab/>}

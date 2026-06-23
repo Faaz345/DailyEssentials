@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
-import { playSound, SoundType } from '../lib/sounds';
+import { playSound, type SoundType } from '../lib/sounds';
 
 interface Props extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   sound?: SoundType;
