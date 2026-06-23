@@ -7,9 +7,12 @@ interface Props {
 }
 
 export default function CreateGroupPage({ onGroupCreated }: Props) {
-  const [mode, setMode] = useState<'create' | 'join'>('create');
+  const params = new URLSearchParams(window.location.search);
+  const joinParam = params.get('join') ?? '';
+
+  const [mode, setMode] = useState<'create' | 'join'>(joinParam ? 'join' : 'create');
   const [name, setName] = useState('');
-  const [inviteToken, setInviteToken] = useState('');
+  const [inviteToken, setInviteToken] = useState(joinParam);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);

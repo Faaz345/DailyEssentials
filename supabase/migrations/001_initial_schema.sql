@@ -254,3 +254,26 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.meetups;
 -- ============================================================
 -- Done! Your Daily Essentials database is ready.
 -- ============================================================
+
+ - -    % %  J o i n   G r o u p   R P C    % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+ C R E A T E   O R   R E P L A C E   F U N C T I O N   p u b l i c . j o i n _ g r o u p _ b y _ t o k e n ( i n v i t e _ c o d e   t e x t ) 
+ R E T U R N S   u u i d 
+ L A N G U A G E   p l p g s q l 
+ S E C U R I T Y   D E F I N E R 
+ A S   \ $ \ $ 
+ D E C L A R E 
+     f o u n d _ g r o u p _ i d   u u i d ; 
+ B E G I N 
+     S E L E C T   i d   I N T O   f o u n d _ g r o u p _ i d   F R O M   p u b l i c . g r o u p s   W H E R E   i n v i t e _ t o k e n   =   i n v i t e _ c o d e   L I M I T   1 ; 
+     I F   f o u n d _ g r o u p _ i d   I S   N U L L   T H E N 
+         R A I S E   E X C E P T I O N   ' I n v a l i d   i n v i t e   c o d e ' ; 
+     E N D   I F ; 
+ 
+     I N S E R T   I N T O   p u b l i c . m e m b e r s h i p s   ( g r o u p _ i d ,   u s e r _ i d ,   r o l e ) 
+     V A L U E S   ( f o u n d _ g r o u p _ i d ,   a u t h . u i d ( ) ,   ' m e m b e r ' ) 
+     O N   C O N F L I C T   D O   N O T H I N G ; 
+ 
+     R E T U R N   f o u n d _ g r o u p _ i d ; 
+ E N D ; 
+ \ $ \ $ ;  
+ 

@@ -159,28 +159,19 @@ export const fetchMyGroup = async (): Promise<Group | null> => {
 export const createGroup = async (name: string): Promise<Group | null> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const token = Math.random().toString(36).substring(2, 8).toUpperCase();
-  const { data: group, error: gErr } = await supabase
-    .from('groups')
-    .insert({ name, created_by: user.id, invite_token: token })
-    .select()
-    .single();
-  if (gErr || !group) { console.error('createGroup:', gErr); return null; }
-  await supabase.from('memberships').insert({ group_id: group.id, user_id: user.id, role: 'owner' });
-  return group;
+  const { data, error } = await supabase.from('groups').insert({ name, created_by: user.id }).select().single();
+  if (error) { console.error('createGroup:', error); return null; }
+  await supabase.from('memberships').insert({ group_id: data.id, user_id: user.id, role: 'owner' });
+  return data;
 };
 
 export const joinGroupByToken = async (token: string): Promise<Group | null> => {
-  const { data: group, error } = await supabase
-    .from('groups')
-    .select('*')
-    .eq('invite_token', token)
-    .single();
-  if (error || !group) { console.error('joinGroup:', error); return null; }
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  await supabase.from('memberships').upsert({ group_id: group.id, user_id: user.id, role: 'member' }, { onConflict: 'group_id,user_id' });
-  return group;
+  const { data: groupId, error } = await supabase.rpc('join_group_by_token', { invite_code: token });
+  if (error || !groupId) {
+    console.error('joinGroupByToken:', error);
+    return null;
+  }
+  return fetchMyGroup();
 };
 
 export const fetchGroupMembers = async (groupId: string): Promise<Membership[]> => {
