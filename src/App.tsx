@@ -502,6 +502,7 @@ function ChatTab() {
       animation: 'fade-in .2s ease',
       overflow: 'hidden',
     }}>
+      {menuMsg && (
         <>
           <div onClick={() => setMenuMsg(null)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'transparent' }} />
           <div style={{
@@ -577,6 +578,7 @@ function ChatTab() {
             </div>
           </div>
         </>
+      )}
 
       {/* ── Header ── */}
       <div style={{
