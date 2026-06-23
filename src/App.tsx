@@ -471,6 +471,7 @@ function ChatTab() {
       backdropFilter:'blur(8px)',
       animation:'fade-in .2s ease',
       zIndex:5,
+      overflow:'hidden',
     }}>
       <div style={{
         display:'flex', alignItems:'center', gap:12,
@@ -480,22 +481,19 @@ function ChatTab() {
         flexShrink:0,
         boxShadow:'0 4px 20px rgba(0,0,0,0.4)',
       }}>
-        <button style={{ background:'none', border:'none', color:'#fff', padding:8, cursor:'pointer' }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
-        </button>
-
         <div className="chat-hdr-avatars" onClick={() => setShowAddMembers(true)} style={{ position:'relative', width:46, height:46, flexShrink:0, cursor:'pointer' }}>
           {members.slice(0, 2).map((m,i) => (
             <div key={m.user_id} className="chat-av" style={{
               position:'absolute', width:30, height:30,
               top:i===0?0:'auto', bottom:i===1?0:'auto',
               left:i===0?0:'auto', right:i===1?0:'auto',
-              background: '#21C55D',
+              background: m.profiles?.accent_color ?? '#21C55D',
               boxShadow:'0 2px 4px rgba(0,0,0,0.5)'
             }}>
-              <img src={m.profiles?.avatar_url || avYou} alt={m.profiles?.display_name || 'Member'}/>
+              {m.profiles?.avatar_url
+                ? <img src={m.profiles.avatar_url} alt={m.profiles.display_name ?? 'Member'} referrerPolicy="no-referrer"/>
+                : <span style={{fontSize:12,fontWeight:800,color:'#fff'}}>{(m.profiles?.display_name ?? 'M')[0].toUpperCase()}</span>
+              }
             </div>
           ))}
         </div>
@@ -508,14 +506,9 @@ function ChatTab() {
             {Math.max(1, onlineUsers.length)} online
           </div>
         </div>
-        <button className="chat-hdr-btn green">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013 7.68a19.79 19.79 0 01-3.07-8.67A2 2 0 011.93 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
-          </svg>
-        </button>
         <button className="chat-hdr-btn dark" onClick={() => setShowAddMembers(true)}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="12" cy="5" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="19" r="2.2"/>
+            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
           </svg>
         </button>
       </div>
@@ -524,33 +517,29 @@ function ChatTab() {
 
       {meetup && (
         <div className="pinned-msg">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--green-main)" style={{ flexShrink:0, marginTop:2, filter:'drop-shadow(0 0 4px rgba(34,197,94,0.4))' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--green-main)" style={{ flexShrink:0, marginTop:2 }}>
             <path d="M16 3H8v2h1.5v6.5l-2.5 3v1h4v5l1 1 1-1v-5h4v-1l-2.5-3V5H16z"/>
           </svg>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:12, fontWeight:800, color:'var(--green-main)', marginBottom:2 }}>Pinned Meetup</div>
-            <div style={{ fontSize:13, color:'var(--txt)', fontWeight:500 }}>
-              {meetup.title} {meetup.start_at ? `at ${new Date(meetup.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:11, fontWeight:800, color:'var(--green-main)', marginBottom:1 }}>Pinned Meetup</div>
+            <div style={{ fontSize:13, color:'var(--txt)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {meetup.title}{meetup.start_at ? ` · ${new Date(meetup.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
             </div>
           </div>
-          <button style={{ background:'none', border:'none', color:'var(--green-main)', cursor:'pointer', padding:4, opacity:0.8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
         </div>
       )}
 
-      <div className="hide-scroll" style={{ flex:1, overflowY:'auto', padding:'16px 14px 10px' }}>
+      <div className="hide-scroll" style={{ flex:1, overflowY:'auto', padding:'12px 14px 8px' }}>
         {msgs.map((msg: any) => {
           const isMe = msg.mine;
-          const avatar = msg.senderAvatar ?? avYou;
+          const avatar = msg.senderAvatar;
           const name = msg.senderName ?? 'Member';
           const color = msg.senderColor ?? '#21C55D';
           const rawMsg = ctxMessages.find(m => m.id === msg.id);
           const reactions = rawMsg?.message_reactions || [];
-          const myReaction = reactions.find(r => r.user_id === session?.user?.id);
+          const grouped: Record<string, number> = {};
+          reactions.forEach((r: any) => { grouped[r.emoji] = (grouped[r.emoji] ?? 0) + 1; });
+          const myReaction = reactions.find((r: any) => r.user_id === session?.user?.id);
 
           const toggleReaction = async (emoji: string) => {
             playSound('click');
@@ -564,44 +553,36 @@ function ChatTab() {
           };
 
           return (
-            <div key={msg.id} className={`chat-row${isMe?' me':''}`} style={{ position: 'relative' }}>
+            <div key={msg.id} className={`chat-row${isMe ? ' me' : ''}`}>
               {!isMe && (
-                <div className="chat-av" style={{ background: color }}>
-                  {avatar.startsWith('http') ?
-                    <img src={avatar} alt={name} referrerPolicy="no-referrer"/> :
-                    <img src={avatar} alt={name}/>
+                <div className="chat-av" style={{ background: color, flexShrink: 0 }}>
+                  {avatar
+                    ? <img src={avatar} alt={name} referrerPolicy="no-referrer"/>
+                    : <span style={{fontSize:12, fontWeight:800, color:'#fff'}}>{name[0].toUpperCase()}</span>
                   }
                 </div>
               )}
               <div className="chat-bubble-wrap">
                 {!isMe && <div className="chat-sender">{name}</div>}
-                
-                <div style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
-                  <div className={`chat-bubble ${isMe?'mine':'theirs'}`} onDoubleClick={() => toggleReaction('🔥')}>
-                    {msg.text}
-                  </div>
-                  
-                  {/* Quick Reaction Button */}
-                  {conversationId && (
-                    <button 
-                      onClick={() => toggleReaction('🔥')}
-                      style={{ opacity: 0.5, cursor: 'pointer', background: 'none', border: 'none', fontSize: 16 }}
-                    >
-                      +
-                    </button>
-                  )}
+                <div className={`chat-bubble ${isMe ? 'mine' : 'theirs'}`} onDoubleClick={() => toggleReaction('🔥')}>
+                  {msg.text}
                 </div>
-
-                {reactions.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, marginTop: 4, paddingLeft: isMe ? 0 : 4, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                    {reactions.map(r => (
-                      <div key={r.id} style={{ 
-                        background: 'rgba(255,255,255,0.1)', padding: '2px 6px', 
-                        borderRadius: 10, fontSize: 12, border: '1px solid rgba(255,255,255,0.05)',
-                        display: 'flex', alignItems: 'center', gap: 4
-                      }}>
-                        {r.emoji}
-                      </div>
+                {Object.keys(grouped).length > 0 && (
+                  <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginTop:4, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                    {Object.entries(grouped).map(([emoji, count]) => (
+                      <button
+                        key={emoji}
+                        onClick={() => toggleReaction(emoji)}
+                        style={{
+                          background: myReaction?.emoji === emoji ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)',
+                          border: `1px solid ${myReaction?.emoji === emoji ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                          borderRadius: 20, padding:'2px 8px', fontSize:13,
+                          color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', gap:4,
+                          fontFamily:'inherit',
+                        }}
+                      >
+                        {emoji} {count > 1 && <span style={{fontSize:11, opacity:0.7}}>{count}</span>}
+                      </button>
                     ))}
                   </div>
                 )}
@@ -610,26 +591,25 @@ function ChatTab() {
             </div>
           );
         })}
-
         {typingUsers.length > 0 && (
-          <div className="chat-row" style={{ animation: 'fade-in 0.2s ease' }}>
-             <div className="chat-bubble-wrap">
-                <div className="chat-bubble theirs" style={{ fontSize: 12, padding: '8px 12px', fontStyle: 'italic', opacity: 0.7 }}>
-                  Someone is typing...
-                </div>
-             </div>
+          <div className="chat-row" style={{ animation:'fade-in 0.2s ease' }}>
+            <div className="chat-bubble-wrap">
+              <div className="chat-bubble theirs" style={{ fontSize:13, fontStyle:'italic', opacity:0.7 }}>
+                Someone is typing…
+              </div>
+            </div>
           </div>
         )}
-
         <div ref={endRef}/>
       </div>
 
       <div style={{
         padding:'10px 14px',
-        paddingBottom:'calc(94px + max(10px, env(safe-area-inset-bottom)))',
+        paddingBottom:'max(10px, env(safe-area-inset-bottom))',
         background:'linear-gradient(0deg,rgba(8,18,10,0.98) 0%,rgba(8,18,10,0.9) 100%)',
         borderTop:'1px solid rgba(255,255,255,0.07)',
         flexShrink:0,
+        marginBottom: 70,
       }}>
         <div className="chat-input-wrapper">
           <div className="chat-input-row">
@@ -649,8 +629,8 @@ function ChatTab() {
               <line x1="15" y1="9" x2="15.01" y2="9"></line>
             </svg>
           </div>
-          <SplashButton className="btn-3d-green" sound="pop" style={{ width: 44, height: 44, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={send}>
-             <span style={{ fontSize: 18 }}>↑</span>
+          <SplashButton className="btn-3d-green" sound="pop" style={{ width:44, height:44, padding:0, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }} onClick={send}>
+            <span style={{ fontSize:18 }}>↑</span>
           </SplashButton>
         </div>
       </div>
