@@ -1026,46 +1026,149 @@ function NotifsPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 
 function AddMembersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { members, group, profile } = useApp();
+  const [copied, setCopied] = useState(false);
+  const [search, setSearch] = useState('');
+
   if (!open) return null;
+
+  const inviteLink = group?.invite_token ? `${window.location.origin}/?join=${group.invite_token}` : '';
+  const inviteToken = group?.invite_token ?? '';
+
+  const copyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+    } catch {
+      // Fallback for mobile
+      const el = document.createElement('textarea');
+      el.value = inviteLink;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    playSound('success');
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const filteredMembers = members.filter(m =>
+    (m.profiles?.display_name ?? '').toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 300,
-      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)',
       display: 'grid', placeItems: 'center', padding: 20,
       animation: 'fade-in .2s ease'
     }} onClick={onClose}>
-      <div className="card" style={{ width: '100%', maxWidth: 360, padding: '24px 20px', margin: 0, animation: 'rise .3s cubic-bezier(0.34, 1.56, 0.64, 1)' }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Add Members 🌿</div>
-        <div className="chat-input-row" style={{ marginBottom: 16, padding: '10px 16px' }}>
-          <input placeholder="Search active users..." autoFocus />
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)' }}>
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      <div className="card" style={{
+        width: '100%', maxWidth: 380, padding: '24px 20px', margin: 0,
+        animation: 'rise .3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* Title */}
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Group Members 🌿</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
+          {members.length} member{members.length !== 1 ? 's' : ''} in <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{group?.name}</span>
+        </div>
+
+        {/* Search bar */}
+        <div className="chat-input-row" style={{ marginBottom: 14, padding: '8px 14px' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)', flexShrink: 0 }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
+          <input
+            placeholder="Search members..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoFocus
+          />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 260, overflowY: 'auto', paddingRight: 6 }} className="hide-scroll">
-          {[
-            { name: 'Alex', color: '#EAB308', status: 'Online', inGroup: false },
-            { name: 'Sam', color: '#EC4899', status: 'Online', inGroup: false },
-            { name: 'Maya', color: '#60A5FA', status: 'In Group', inGroup: true },
-            { name: 'Jesse', color: '#FBBF24', status: 'In Group', inGroup: true },
-          ].map((u, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, opacity: u.inGroup ? 0.5 : 1 }}>
-              <div className="chat-av" style={{ background: u.color, width: 38, height: 38, fontSize: 15 }}>{u.name[0]}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{u.name}</div>
-                <div style={{ fontSize: 11, color: u.status === 'Online' ? 'var(--green-main)' : 'var(--muted)', fontWeight: 600 }}>{u.status}</div>
-              </div>
-              {!u.inGroup && (
-                <button className="chat-hdr-btn green" style={{ width: 32, height: 32, fontSize: 16, fontWeight: 800 }}>+</button>
-              )}
+
+        {/* Members list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto', paddingRight: 4 }} className="hide-scroll">
+          {filteredMembers.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '20px 0' }}>
+              No members found
             </div>
-          ))}
+          )}
+          {filteredMembers.map(m => {
+            const isMe = m.user_id === profile?.id;
+            const name = m.profiles?.display_name ?? 'Member';
+            const color = m.profiles?.accent_color ?? '#21C55D';
+            const avatar = m.profiles?.avatar_url;
+            return (
+              <div key={m.user_id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '8px 10px', borderRadius: 14,
+                background: isMe ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${isMe ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)'}`,
+              }}>
+                <div className="chat-av" style={{ background: color, width: 38, height: 38, flexShrink: 0 }}>
+                  {avatar
+                    ? <img src={avatar} alt={name} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}/>
+                    : <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{name[0].toUpperCase()}</span>
+                  }
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {name}
+                    {isMe && <span style={{ fontSize: 10, background: 'rgba(34,197,94,0.15)', color: 'var(--green-main)', padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>You</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: m.role === 'owner' ? 'var(--lime)' : 'var(--muted)', fontWeight: 600, marginTop: 1 }}>
+                    {m.role === 'owner' ? '👑 Owner' : 'Member'}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-        <button className="btn-3d-green" style={{ marginTop: 24 }} onClick={onClose}>Done</button>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '18px 0 14px' }} />
+
+        {/* Invite section */}
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt2)', marginBottom: 10 }}>
+          📨 Invite someone to join
+        </div>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 12, padding: '10px 12px',
+          marginBottom: 10,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, marginBottom: 2 }}>INVITE CODE</div>
+            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 4, color: 'var(--lime)', fontFamily: 'monospace' }}>
+              {inviteToken}
+            </div>
+          </div>
+          <button
+            onClick={copyInvite}
+            style={{
+              background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
+              border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: 10, padding: '8px 14px', color: copied ? 'var(--green-main)' : 'var(--txt)',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+              transition: 'all .2s', fontFamily: 'inherit',
+            }}
+          >
+            {copied ? '✓ Copied!' : 'Copy link'}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+          Share this code with anyone — they can enter it on the Join Group screen.
+        </div>
+
+        <SplashButton className="btn-3d-dark" sound="click" style={{ width: '100%', marginTop: 18 }} onClick={onClose}>
+          Close
+        </SplashButton>
       </div>
     </div>
-  )
+  );
 }
 
 // ─── Main App with Auth Guard ────────────────────────────────────
