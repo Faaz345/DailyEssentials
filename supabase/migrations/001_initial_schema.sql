@@ -151,10 +151,19 @@ CREATE POLICY "Users can update their own profile" ON public.profiles
 CREATE POLICY "Users can insert their own profile" ON public.profiles
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 
--- GROUPS: visible to members only
-CREATE POLICY "Groups visible to members" ON public.groups
+-- SECURITY DEFINER FUNCTION to prevent infinite recursion
+CREATE OR REPLACE FUNCTION public.is_member_of(_group_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.memberships
+    WHERE group_id = _group_id AND user_id = auth.uid()
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- GROUPS: visible to members or creator
+CREATE POLICY "Groups visible to members or creator" ON public.groups
   FOR SELECT TO authenticated USING (
-    id IN (SELECT group_id FROM public.memberships WHERE user_id = auth.uid())
+    created_by = auth.uid() OR public.is_member_of(id)
   );
 CREATE POLICY "Authenticated users can create groups" ON public.groups
   FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
@@ -162,7 +171,7 @@ CREATE POLICY "Authenticated users can create groups" ON public.groups
 -- MEMBERSHIPS: visible to members of the group
 CREATE POLICY "Memberships visible to group members" ON public.memberships
   FOR SELECT TO authenticated USING (
-    group_id IN (SELECT group_id FROM public.memberships WHERE user_id = auth.uid())
+    public.is_member_of(group_id)
   );
 CREATE POLICY "Authenticated users can join groups" ON public.memberships
   FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
@@ -170,7 +179,7 @@ CREATE POLICY "Authenticated users can join groups" ON public.memberships
 -- MEETUPS: visible to group members
 CREATE POLICY "Meetups visible to group members" ON public.meetups
   FOR ALL TO authenticated USING (
-    group_id IN (SELECT group_id FROM public.memberships WHERE user_id = auth.uid())
+    public.is_member_of(group_id)
   );
 
 -- RSVPS: visible to group members, mutable by owner
@@ -206,7 +215,7 @@ CREATE POLICY "Members can manage supplies" ON public.supplies
 -- CONVERSATIONS: visible to group members
 CREATE POLICY "Conversations visible to group members" ON public.conversations
   FOR ALL TO authenticated USING (
-    group_id IN (SELECT group_id FROM public.memberships WHERE user_id = auth.uid())
+    public.is_member_of(group_id)
   );
 
 -- MESSAGES: visible to conversation members
