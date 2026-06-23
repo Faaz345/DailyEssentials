@@ -7,7 +7,7 @@ interface Props extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   splashColor?: string;
 }
 
-export function SplashButton({ children, onClick, className, style, disabled, sound = 'click', splashColor = 'rgba(34,197,94,0.8)', ...props }: Props) {
+export function SplashButton({ children, onClick, className, style = {}, disabled, sound = 'click', splashColor = 'rgba(34,197,94,0.8)', ...props }: Props) {
   const [splashes, setSplashes] = useState<any[]>([]);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -25,8 +25,35 @@ export function SplashButton({ children, onClick, className, style, disabled, so
     if (onClick) onClick(e);
   };
 
+  const isFullWidth = style.width === '100%';
+  const hasFlex = style.flex !== undefined;
+
+  const wrapperStyle: React.CSSProperties = {
+    position: 'relative',
+    display: (isFullWidth || hasFlex) ? 'flex' : 'inline-block',
+    flexDirection: 'column',
+    flex: style.flex,
+    width: style.width || (hasFlex ? '100%' : 'auto'),
+    marginTop: style.marginTop,
+    marginBottom: style.marginBottom,
+    marginLeft: style.marginLeft,
+    marginRight: style.marginRight,
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    ...style,
+    marginTop: 0,
+    marginBottom: 0,
+    marginLeft: 0,
+    marginRight: 0,
+    flex: 1,
+    width: '100%',
+    position: 'relative',
+    zIndex: 1
+  };
+
   return (
-    <div style={{ position: 'relative', display: style?.width === '100%' ? 'block' : 'inline-block', width: style?.width || 'auto' }}>
+    <div style={wrapperStyle}>
       <AnimatePresence>
         {splashes.map(s => (
           <motion.div
@@ -54,7 +81,7 @@ export function SplashButton({ children, onClick, className, style, disabled, so
       </AnimatePresence>
       <button 
         className={className} 
-        style={{ ...style, position: 'relative', zIndex: 1 }} 
+        style={buttonStyle} 
         onClick={handleClick}
         disabled={disabled}
         {...props}
