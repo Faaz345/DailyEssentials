@@ -312,7 +312,8 @@ export const fetchMessages = async (conversationId: string): Promise<Message[]> 
 export const sendMessage = async (conversationId: string, body: string, kind: 'text' | 'image' | 'system' = 'text') => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, body, kind });
+  const { error } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, body, kind });
+  if (error) console.error('sendMessage Error:', error);
 };
 
 export const addMessageReaction = async (messageId: string, emoji: string) => {
