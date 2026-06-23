@@ -784,12 +784,23 @@ function ChatTab() {
         })}
 
         {typingUsers.length > 0 && (
-          <div className="chat-row" style={{ animation: 'fade-in 0.2s ease' }}>
-            <div className="chat-bubble-wrap">
-              <div className="chat-bubble theirs" style={{ fontSize: 13, fontStyle: 'italic', opacity: 0.7 }}>
-                Someone is typing…
-              </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '4px 14px',
+            animation: 'fade-in 0.2s ease'
+          }}>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: 'var(--green-main)',
+                  opacity: 0.7,
+                  animation: `typing-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                }} />
+              ))}
             </div>
+            <span style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+              {members.find(m => m.user_id === typingUsers[0])?.profiles?.display_name ?? 'Someone'} is typing
+            </span>
           </div>
         )}
         <div ref={endRef} />
@@ -1426,7 +1437,10 @@ export default function App() {
         { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
         () => fetchMessages(conversationId).then(setMessages))
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'message_reactions' },
+        { event: 'INSERT', schema: 'public', table: 'message_reactions' },
+        () => fetchMessages(conversationId).then(setMessages))
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'message_reactions' },
         () => fetchMessages(conversationId).then(setMessages))
       .subscribe();
     return () => { supabase.removeChannel(msgSub); };
