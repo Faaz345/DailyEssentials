@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { SplashButton } from '../components/SplashButton';
 import { joinGroupByToken } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 
@@ -58,9 +59,9 @@ export default function JoinGroupPage() {
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>
           Invite token: <code style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>{token}</code>
         </div>
-        <button className="btn-3d-green" onClick={handleJoin} disabled={loading}>
-          {loading ? 'Joining...' : 'Join the Crew 🔥'}
-        </button>
+        <SplashButton className="btn-3d-green" sound="success" onClick={handleJoin} disabled={loading}>
+          {loading ? 'Joining...' : 'Join Crew ✨'}
+        </SplashButton>
       </div>
     </div>
   );

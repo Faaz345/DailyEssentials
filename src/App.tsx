@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { useAnimate } from 'motion/react';
+import { SplashButton } from './components/SplashButton';
+import { playSound, getSoundsEnabled, setSoundsEnabled } from './lib/sounds';
 import './index.css';
 import logoSrc  from './assets/logo.png';
 import _bgSrc   from './assets/bg.png'; // imported so Vite bundles it
@@ -107,7 +109,7 @@ const INIT_MSGS = [
 // Circular Progress Ring
 const Ring = ({ pct }: { pct: number }) => {
   const r = 26, circ = 2 * Math.PI * r;
-  const offset = circ - (pct / 100) * circ;
+  const offset = circ - (Math.min(pct, 100) / 100) * circ;
   return (
     <svg className="circ-ring" viewBox="0 0 62 62" style={{ transform: 'rotate(-90deg)' }}>
       <circle cx="31" cy="31" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="5.5"/>
@@ -133,23 +135,22 @@ const Ring = ({ pct }: { pct: number }) => {
 // ─────────────────────────────────────────────
 function MeetupTab() {
   const { meetup, rsvps, members, session, reloadData } = useApp();
-  const myRsvp = rsvps.find(r => r.user_id === session?.user?.id);
+  const myRsvp = rsvps.find(r => r.user_id === session?.user?.id)?.status ?? null;
   const [rsvpLoading, setRsvpLoading] = useState(false);
 
-  const handleRsvp = async (status: 'in' | 'out') => {
+  const handleRsvp = async (status: 'in' | 'out' | 'maybe') => {
     if (!meetup) return;
     setRsvpLoading(true);
+    playSound('click');
     await upsertRsvp(meetup.id, status);
     await reloadData();
     setRsvpLoading(false);
   };
 
-  // Format date/time from meetup.start_at
   const startDate = meetup?.start_at ? new Date(meetup.start_at) : null;
   const dateStr = startDate ? startDate.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : 'TBD';
   const timeStr = startDate ? startDate.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : 'TBD';
 
-  // Map rsvp statuses to members
   const membersWithStatus = members.map(m => {
     const rsvp = rsvps.find(r => r.user_id === m.user_id);
     const isMe = m.user_id === session?.user?.id;
@@ -164,13 +165,11 @@ function MeetupTab() {
     };
   });
 
-  // Fallback to demo data when no real meetup loaded yet
   const demoMode = !meetup;
   const displayMembers = demoMode ? MEMBERS : membersWithStatus;
 
   return (
     <div style={{ animation:'fade-in .2s ease' }}>
-      {/* Event Card */}
       <div className="card">
         <div style={{ display:'flex', gap:14, alignItems:'flex-start' }}>
           <div style={{ flex:1 }}>
@@ -203,48 +202,31 @@ function MeetupTab() {
           </div>
         </div>
 
-        <button
+        <SplashButton
           className="btn-3d-green"
-          style={{ marginTop:20 }}
+          style={{ marginTop:20, width: '100%' }}
+          sound="whoosh"
           onClick={() => window.open(`https://maps.google.com/maps?q=${encodeURIComponent(meetup?.place_label ?? '123 Greenway Ave, Los Angeles')}`, '_blank')}
         >
           Open in Maps
-          <span className="btn-arrow-badge">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
-            </svg>
-          </span>
-        </button>
+        </SplashButton>
       </div>
 
-      {/* RSVP Card */}
-      <div className="card">
-        <div style={{ fontSize:15, fontWeight:700, marginBottom:14 }}>Are you in?</div>
-        <div className="rsvp-row">
-          <button
-            className="btn-3d-green"
-            style={{ opacity: myRsvp?.status === 'out' ? 0.6 : 1 }}
-            onClick={() => handleRsvp('in')}
-            disabled={rsvpLoading}
-          >
-            I'm In <span className="btn-check-badge">✓</span>
-          </button>
-          <button
-            className="btn-3d-dark"
-            onClick={() => handleRsvp('out')}
-            disabled={rsvpLoading}
-          >
-            Can't Make It <span className="btn-x-badge">✕</span>
-          </button>
-        </div>
-        {myRsvp && (
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted)', textAlign: 'center', fontWeight: 600 }}>
-            Your RSVP: <span style={{ color: myRsvp.status === 'in' ? 'var(--green-main)' : '#F87171' }}>{myRsvp.status === 'in' ? "You're in! 🎉" : "Can't make it 😢"}</span>
+      <div className="card" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt2)' }}>Are you joining?</div>
+          <div className="rsvp-row">
+            <SplashButton className="btn-3d-green" sound="success" style={{ flex: 1, padding: '14px 0' }} onClick={() => handleRsvp('in')} disabled={rsvpLoading}>
+               {myRsvp === 'in' ? '✓ I\'m In' : 'I\'m In'}
+            </SplashButton>
+            <SplashButton className="btn-3d-dark" sound="click" style={{ flex: 1, padding: '14px 0' }} onClick={() => handleRsvp('out')} disabled={rsvpLoading}>
+               {myRsvp === 'out' ? '✓ Out' : 'Out'}
+            </SplashButton>
+            <SplashButton className="btn-3d-dark" sound="whoosh" style={{ flex: 1, padding: '14px 0' }} onClick={() => handleRsvp('maybe')} disabled={rsvpLoading}>
+               {myRsvp === 'maybe' ? '✓ Maybe' : 'Maybe'}
+            </SplashButton>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Who's Coming */}
       <div className="card">
         <div className="who-coming-label">
           Who's coming <span>({displayMembers.length})</span>
@@ -276,7 +258,6 @@ const TIPS = [
   "If you're bringing snacks, try to bring something sweet and something salty. 🥨"
 ];
 
-// SupplyItem type for demo supplies only
 export type SupplyItem = {
   id: string;
   name: string;
@@ -288,15 +269,16 @@ export type SupplyItem = {
 function SuppliesTab() {
   const { supplies: ctxSupplies, meetup, reloadData } = useApp();
   const [tipIdx, setTipIdx] = useState(0);
+  const [customName, setCustomName] = useState('');
+  const [addingCustom, setAddingCustom] = useState(false);
 
-  // Use real supplies if available, else demo supplies
   const demoMode = !meetup;
   const supplies = demoMode ? INIT_SUPPLIES : ctxSupplies;
 
   useEffect(() => {
     const timer = setInterval(() => {
       setTipIdx(v => (v + 1) % TIPS.length);
-    }, 3500);
+    }, 3000);
     return () => clearInterval(timer);
   }, []);
 
@@ -304,7 +286,8 @@ function SuppliesTab() {
   const pct = Math.round((covered / Math.max(supplies.length, 1)) * 100);
 
   const toggle = async (s: any) => {
-    if (demoMode) return; // demo mode only — no DB
+    playSound(s.claimed_by ? 'click' : 'pop');
+    if (demoMode) return;
     if (s.claimed_by) {
       await unclaimSupply(s.id);
     } else {
@@ -314,17 +297,19 @@ function SuppliesTab() {
   };
 
   const addCustomSupply = async () => {
-    const name = window.prompt("Enter new supply name:");
-    if (name && name.trim()) {
-      if (demoMode) return;
-      await addSupply(meetup!.id, name.trim());
-      await reloadData();
+    if (customName && customName.trim()) {
+      playSound('pop');
+      if (!demoMode) {
+        await addSupply(meetup!.id, customName.trim());
+        await reloadData();
+      }
+      setCustomName('');
+      setAddingCustom(false);
     }
   };
 
   return (
     <div style={{ animation:'fade-in .2s ease', display:'flex', flexDirection:'column', gap:14 }}>
-      {/* Supplies Header outside the card */}
       <div style={{ fontSize:24, fontWeight:800, display:'flex', alignItems:'center', gap:10, marginLeft: 6, marginTop: 4 }}>
         <svg width="26" height="26" viewBox="0 0 24 24" fill="#22C55E" style={{ filter:'drop-shadow(0 2px 8px rgba(34,197,94,0.4))' }}>
           <rect x="3" y="7" width="18" height="14" rx="2.5"/>
@@ -333,7 +318,6 @@ function SuppliesTab() {
         Supplies
       </div>
 
-      {/* Top Header Card */}
       <div className="card" style={{ padding:'20px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
          <div>
             <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Session Supplies</div>
@@ -344,7 +328,6 @@ function SuppliesTab() {
          <Ring pct={pct} />
       </div>
 
-      {/* Supplies List */}
       <div>
         <div style={{ fontSize:15, fontWeight:800, color:'var(--txt2)', marginBottom:12, paddingLeft:4 }}>Checklist</div>
         {supplies.map((s: any) => {
@@ -365,19 +348,41 @@ function SuppliesTab() {
                   }
                 </div>
               </div>
-              {isClaimed
-                ? <button className="supply-check-btn" onClick={() => toggle(s)}>✓</button>
-                : <button className="supply-add-btn"   onClick={() => toggle(s)}>+</button>
-              }
+              <SplashButton className={isClaimed ? "supply-check-btn" : "supply-add-btn"} sound={isClaimed ? "click" : "pop"} onClick={() => toggle(s)}>
+                 {isClaimed ? '✓' : '+'}
+              </SplashButton>
             </div>
           );
         })}
 
-        <button className="btn-3d-dark" style={{ marginTop: 10, marginBottom: 24 }} onClick={addCustomSupply}>
-           + Add Custom Supply
-        </button>
+        {addingCustom ? (
+          <div className="supply-row" style={{ marginTop: 10, marginBottom: 24, padding: '8px 12px' }}>
+            <div style={{ flex: 1, display: 'flex', gap: 10 }}>
+              <input
+                autoFocus
+                value={customName}
+                onChange={e => setCustomName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addCustomSupply()}
+                placeholder="Name a supply..."
+                style={{
+                  flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: 15,
+                  outline: 'none', fontFamily: 'Poppins, sans-serif'
+                }}
+              />
+            </div>
+            <SplashButton className="btn-3d-green" sound="pop" style={{ padding: '8px 16px', fontSize: 13 }} onClick={addCustomSupply}>
+               Add
+            </SplashButton>
+            <SplashButton className="btn-3d-dark" sound="click" style={{ padding: '8px 16px', fontSize: 13 }} onClick={() => setAddingCustom(false)}>
+               Cancel
+            </SplashButton>
+          </div>
+        ) : (
+          <SplashButton className="btn-3d-dark" sound="whoosh" style={{ marginTop: 10, marginBottom: 24, width: '100%' }} onClick={() => setAddingCustom(true)}>
+             + Add Custom Supply
+          </SplashButton>
+        )}
 
-        {/* Tip Card Popup */}
         <div className="card" style={{
           padding:'16px',
           background: 'linear-gradient(145deg, rgba(34, 197, 94, 0.1), rgba(16, 42, 20, 0.4))',
@@ -412,7 +417,6 @@ function ChatTab() {
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
-  // Fallback demo messages if no conversation yet
   const msgs = (!conversationId || ctxMessages.length === 0) ? INIT_MSGS : ctxMessages.map(m => ({
     id: m.id,
     from: m.sender_id === session?.user?.id ? 'you' : m.sender_id,
@@ -431,16 +435,13 @@ function ChatTab() {
   const send = async () => {
     if (!text.trim()) return;
     if (conversationId) {
+      playSound('pop');
       await sendMessage(conversationId, text.trim());
     }
     setText('');
   };
 
-  // No-op to satisfy linter — only used for demo fallback rendering
-  void ((id: string) => MEMBERS.find(m => m.id === id) ?? MEMBERS[0]);
-
   return (
-    // Flex layout to fill remaining space under the main topbar
     <div style={{
       flex: 1,
       display:'flex', flexDirection:'column',
@@ -449,7 +450,6 @@ function ChatTab() {
       animation:'fade-in .2s ease',
       zIndex:5,
     }}>
-      {/* Chat header bar */}
       <div style={{
         display:'flex', alignItems:'center', gap:12,
         padding:'14px 14px',
@@ -458,7 +458,6 @@ function ChatTab() {
         flexShrink:0,
         boxShadow:'0 4px 20px rgba(0,0,0,0.4)',
       }}>
-        {/* Back arrow */}
         <button style={{ background:'none', border:'none', color:'#fff', padding:8, cursor:'pointer' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6"/>
@@ -501,7 +500,6 @@ function ChatTab() {
 
       <AddMembersModal open={showAddMembers} onClose={() => setShowAddMembers(false)} />
 
-      {/* Pinned Message */}
       <div className="pinned-msg">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--green-main)" style={{ flexShrink:0, marginTop:2, filter:'drop-shadow(0 0 4px rgba(34,197,94,0.4))' }}>
           <path d="M16 3H8v2h1.5v6.5l-2.5 3v1h4v5l1 1 1-1v-5h4v-1l-2.5-3V5H16z"/>
@@ -518,14 +516,9 @@ function ChatTab() {
         </button>
       </div>
 
-      {/* Messages scroll area — takes all remaining space */}
-      <div
-        className="hide-scroll"
-        style={{ flex:1, overflowY:'auto', padding:'16px 14px 10px' }}
-      >
+      <div className="hide-scroll" style={{ flex:1, overflowY:'auto', padding:'16px 14px 10px' }}>
         {msgs.map((msg: any) => {
           const isMe = msg.mine;
-          // Try to find in MEMBERS first (demo), else use real profile data
           const demoMember = MEMBERS.find(m => m.id === msg.from);
           const avatar = msg.senderAvatar ?? demoMember?.avatar ?? avYou;
           const name = msg.senderName ?? demoMember?.name ?? 'Member';
@@ -551,7 +544,6 @@ function ChatTab() {
         <div ref={endRef}/>
       </div>
 
-      {/* Input pinned to bottom above nav bar */}
       <div style={{
         padding:'10px 14px',
         paddingBottom:'calc(94px + max(10px, env(safe-area-inset-bottom)))',
@@ -577,19 +569,9 @@ function ChatTab() {
               <line x1="15" y1="9" x2="15.01" y2="9"></line>
             </svg>
           </div>
-          <button className="send-btn" onClick={send}>
-            {text.trim() ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/>
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="22"/>
-              </svg>
-            )}
-          </button>
+          <SplashButton className="btn-3d-green" sound="pop" style={{ width: 44, height: 44, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={send}>
+             <span style={{ fontSize: 18 }}>↑</span>
+          </SplashButton>
         </div>
       </div>
     </div>
@@ -599,22 +581,30 @@ function ChatTab() {
 // ─────────────────────────────────────────────
 // PROFILE TAB
 // ─────────────────────────────────────────────
-function ProfileTab({ onSignOut: _onSignOut }: { onSignOut?: () => void }) {
-  const { profile } = useApp();
+function ProfileTab() {
+  const { session, profile, group } = useApp();
+  const [soundsOn, setSoundsOn] = useState(getSoundsEnabled());
+
+  const handleToggleSounds = () => {
+    const newVal = !soundsOn;
+    setSoundsOn(newVal);
+    setSoundsEnabled(newVal);
+    playSound('pop');
+  };
+
+  const copyInvite = () => {
+    if (group?.invite_token) {
+      navigator.clipboard.writeText(`${window.location.origin}/join/${group.invite_token}`);
+      playSound('success');
+    }
+  };
+
   const displayName = profile?.display_name ?? 'You';
   const avatarUrl = profile?.avatar_url ?? avYou;
   const statusText = profile?.status_text ?? 'Keep it chill & positive 🌿';
-  const [soundsEnabled, setSoundsEnabled] = useState(() => localStorage.getItem('soundsEnabled') !== 'false');
-
-  const toggleSounds = () => {
-    const newVal = !soundsEnabled;
-    setSoundsEnabled(newVal);
-    localStorage.setItem('soundsEnabled', String(newVal));
-  };
 
   return (
     <div style={{ animation:'fade-in .2s ease', display:'flex', flexDirection:'column', gap:14 }}>
-      {/* Top Profile Card */}
       <div className="card" style={{ padding:'22px 20px', display:'flex', alignItems:'center', gap:18, marginBottom: 0 }}>
         <div style={{ position:'relative' }}>
           <div className="profile-av" style={{ width: 88, height: 88, border:'3px solid var(--accent)', boxShadow:'0 0 16px rgba(33,197,93,0.25)' }}>
@@ -653,83 +643,31 @@ function ProfileTab({ onSignOut: _onSignOut }: { onSignOut?: () => void }) {
                 <div style={{ height:'100%', width:'60%', background:'linear-gradient(90deg, #16A34A, #3DD88C)', borderRadius:3, boxShadow:'0 0 8px rgba(50,205,50,0.5)' }}/>
              </div>
           </div>
-        </div>
-      </div>
-
-      {/* Stats Row */}
-      <div className="card" style={{ display:'flex', justifyContent:'space-between', padding:'18px 12px', marginBottom: 0 }}>
-        {[
-          { icon:'👥', count:'12', label:'Meetups\nHosted' },
-          { icon:'🌿', count:'48', label:'Sessions\nAttended' },
-          { icon:'🔥', count:'156', label:'Good Vibes\nEarned' },
-          { icon:'🏆', count:'5', label:'Badges\nUnlocked' },
-        ].map((stat, i) => (
-          <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, textAlign:'center' }}>
-            <div style={{ fontSize:20, marginBottom:6, filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>{stat.icon}</div>
-            <div style={{ fontSize:22, fontWeight:800, color:'var(--txt)', lineHeight:1 }}>{stat.count}</div>
-            <div style={{ fontSize:10, color:'var(--txt2)', fontWeight:500, lineHeight:1.3, marginTop:5, whiteSpace:'pre-line' }}>{stat.label}</div>
+          
+          <div style={{ marginTop: 16 }}>
+            <SplashButton className="btn-3d-dark" sound="whoosh" style={{ width: '100%' }}>Edit Profile</SplashButton>
           </div>
-        ))}
-      </div>
-
-      {/* Badges Row */}
-      <div className="card" style={{ padding:'18px 16px', marginBottom: 0 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-          <div style={{ fontSize:15, fontWeight:700 }}>My Badges</div>
-          <div style={{ fontSize:13, color:'var(--txt2)', fontWeight:500 }}>View all &gt;</div>
-        </div>
-        <div style={{ display:'flex', justifyContent:'space-between' }}>
-          {[
-            { icon:'🌿', name:'FIRST\nSESSION', color:'#22C55E' },
-            { icon:'📅', name:'WEEKLY\nWARRIOR', color:'#A3E635' },
-            { icon:'🔥', name:'VIBE\nMASTER', color:'#F97316' },
-            { icon:'🙌', name:'GOOD\nHOST', color:'#EAB308' },
-            { icon:'💨', name:'CHILL\nCHAMP', color:'#A855F7' },
-          ].map((badge, i) => (
-            <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
-              <div style={{
-                width: 52, height: 52, borderRadius: 14,
-                background: 'linear-gradient(145deg, #1A2E1F, #0E1A11)',
-                border: `1.5px solid ${badge.color}40`,
-                boxShadow: `0 4px 12px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.05), 0 0 10px ${badge.color}20`,
-                display: 'grid', placeItems: 'center', fontSize: 26,
-                filter: i === 0 ? 'drop-shadow(0 0 6px rgba(34,197,94,0.4))' : 'none'
-              }}>
-                {badge.icon}
-              </div>
-              <div style={{ fontSize:9, fontWeight:800, color:badge.color, textAlign:'center', lineHeight:1.1, whiteSpace:'pre-line', textShadow:'0 1px 2px rgba(0,0,0,0.8)' }}>
-                {badge.name}
-              </div>
-            </div>
-          ))}
         </div>
       </div>
 
-      {/* Menu List */}
-      <div className="card" style={{ padding:'8px 0', marginBottom: 0 }}>
-        {[
-          { icon: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>, label: 'Edit Profile' },
-          { icon: <path d="M12 2L12 22 M7 5C7 5 5 10 12 10 M17 5C17 5 19 10 12 10 M5 14C5 14 3 19 12 19 M19 14C19 14 21 19 12 19"/>, label: 'Vibe Preferences' },
-          { icon: <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0"/>, label: 'Notifications', right: <span style={{color:'var(--accent)', fontSize:13}}>All On</span> },
-          { icon: <path d="M11 5L6 9H2v6h4l5 4V5z M19.07 4.93a10 10 0 0 1 0 14.14 M15.54 8.46a5 5 0 0 1 0 7.07"/>, label: 'Sound Effects', right: <div style={{width: 36, height: 20, borderRadius: 10, background: soundsEnabled ? 'var(--green-main)' : 'rgba(255,255,255,0.2)', position: 'relative', transition: 'background 0.2s'}}><div style={{width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: soundsEnabled ? 18 : 2, transition: 'left 0.2s'}}/></div>, onClick: toggleSounds },
-          { icon: <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4"/>, label: 'Privacy & Safety' },
-          { icon: <><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01"/><circle cx="12" cy="12" r="10"/></>, label: 'Help & Support' },
-          { icon: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9"/>, label: 'Log Out', color: '#EF4444' },
-        ].map((item, i) => (
-          <div key={i} onClick={item.onClick} style={{
-            display:'flex', alignItems:'center', gap:16, padding:'16px 20px',
-            borderBottom: i === 6 ? 'none' : '1px solid rgba(255,255,255,0.03)',
-            cursor:'pointer'
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={item.color || '#A3E635'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: item.color ? 1 : 0.85 }}>
-              {item.icon}
-            </svg>
-            <div style={{ flex:1, fontSize:15, fontWeight:600, color: item.color || 'var(--txt)' }}>{item.label}</div>
-            {item.right && <div>{item.right}</div>}
-            <div style={{ fontSize:16, color:'var(--muted)', fontWeight:700 }}>&gt;</div>
-          </div>
-        ))}
+      <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt2)' }}>Crew Link</div>
+          <SplashButton className="btn-3d-green" sound="success" style={{ width: '100%' }} onClick={copyInvite}>📋 Copy Invite Link</SplashButton>
       </div>
+
+      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--txt2)', marginTop: 8, paddingLeft: 4 }}>Settings</div>
+      <div className="card" style={{ padding: '0 20px' }}>
+         <div style={{ padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+           <div style={{ fontSize: 15, fontWeight: 600 }}>Sound Effects</div>
+           <div className="toggle" style={{ background: soundsOn ? 'var(--green-main)' : 'rgba(255,255,255,0.1)' }} onClick={handleToggleSounds}>
+             <div className={`toggle-knob ${soundsOn ? 'on' : ''}`} />
+           </div>
+         </div>
+      </div>
+
+      <SplashButton className="btn-3d-dark" sound="crunch" style={{ width: '100%', marginTop: 24, color: '#f87171' }} onClick={signOut}>
+         Log Out
+      </SplashButton>
     </div>
   );
 }
@@ -760,7 +698,6 @@ const MENU_ITEMS = [
 function MenuDrawer({ open, onClose }: { open:boolean; onClose:()=>void }) {
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
@@ -771,7 +708,6 @@ function MenuDrawer({ open, onClose }: { open:boolean; onClose:()=>void }) {
           backdropFilter: open ? 'blur(3px)' : 'none',
         }}
       />
-      {/* Panel */}
       <div style={{
         position:'fixed', top:0, left:0, bottom:0,
         width: 290, zIndex:201,
@@ -783,7 +719,6 @@ function MenuDrawer({ open, onClose }: { open:boolean; onClose:()=>void }) {
         display:'flex', flexDirection:'column',
         paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
       }}>
-        {/* Drawer header */}
         <div style={{ padding:'54px 22px 22px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
           <img src={logoSrc} alt="Daily Essentials"
             style={{ height:44, mixBlendMode:'screen', filter:'drop-shadow(0 0 10px rgba(163,230,53,.5))' }}/>
@@ -791,7 +726,6 @@ function MenuDrawer({ open, onClose }: { open:boolean; onClose:()=>void }) {
             Your friend group hub 🌿
           </div>
         </div>
-        {/* Menu items */}
         <div style={{ flex:1, overflowY:'auto', padding:'10px 0' }}>
           {MENU_ITEMS.map(item => (
             <button key={item.label}
@@ -817,7 +751,6 @@ function MenuDrawer({ open, onClose }: { open:boolean; onClose:()=>void }) {
             </button>
           ))}
         </div>
-        {/* Footer */}
         <div style={{ padding:'16px 22px', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ fontSize:11, color:'var(--muted)' }}>Daily Essentials v1.0</div>
           <div style={{ fontSize:11, color:'var(--muted)' }}>Built for real friends 🤙</div>

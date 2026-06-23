@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SplashButton } from '../components/SplashButton';
 import { createGroup } from '../lib/queries';
 
 interface Props {
@@ -38,11 +39,11 @@ export default function CreateGroupPage({ onGroupCreated }: Props) {
           <div style={{ fontSize: 12, color: 'var(--txt)', wordBreak: 'break-all', background: 'rgba(255,255,255,0.04)', padding: '12px 14px', borderRadius: 12, marginBottom: 14, border: '1px solid rgba(255,255,255,0.07)' }}>
             {inviteLink}
           </div>
-          <button className="btn-3d-green" onClick={copyLink}>📋 Copy Invite Link</button>
+          <SplashButton className="btn-3d-green" sound="success" onClick={copyLink}>📋 Copy Invite Link</SplashButton>
         </div>
-        <button className="btn-3d-dark" style={{ maxWidth: 360, width: '100%' }} onClick={onGroupCreated}>
+        <SplashButton className="btn-3d-dark" sound="whoosh" style={{ maxWidth: 360, width: '100%' }} onClick={onGroupCreated}>
           Continue to App →
-        </button>
+        </SplashButton>
       </div>
     );
   }
@@ -71,9 +72,9 @@ export default function CreateGroupPage({ onGroupCreated }: Props) {
             outline: 'none', marginBottom: 20,
           }}
         />
-        <button className="btn-3d-green" onClick={handleCreate} disabled={loading || !name.trim()}>
+        <SplashButton className="btn-3d-green" sound="pop" onClick={handleCreate} disabled={loading || !name.trim()}>
           {loading ? 'Creating...' : 'Create Group 🔥'}
-        </button>
+        </SplashButton>
       </div>
     </div>
   );

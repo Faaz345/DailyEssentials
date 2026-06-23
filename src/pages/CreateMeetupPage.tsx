@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createMeetup } from '../lib/queries';
+import { SplashButton } from '../components/SplashButton';
 
 interface Props {
   groupId: string;
@@ -61,9 +62,9 @@ export default function CreateMeetupPage({ groupId, onCreated, onSkip }: Props) 
           </div>
         </div>
 
-        <button className="btn-3d-green" onClick={handleCreate} disabled={loading || !title.trim()} style={{ marginTop: 6 }}>
+        <SplashButton className="btn-3d-green" sound="pop" style={{ width: '100%', marginTop: 8 }} onClick={handleCreate} disabled={loading}>
           {loading ? 'Creating...' : 'Create Meetup 🚀'}
-        </button>
+        </SplashButton>
       </div>
 
       <button onClick={onSkip} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 14, cursor: 'pointer', padding: 8 }}>
