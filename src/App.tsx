@@ -14,7 +14,8 @@ import {
   fetchGroupMembers, fetchSupplies, fetchRsvps, claimSupply, unclaimSupply,
   addSupply, upsertRsvp, fetchOrCreateConversation, fetchMessages, sendMessage,
   fetchProfileStats, addMessageReaction, removeMessageReaction,
-  deleteMessage, markMessagesRead, fetchReceipts
+  deleteMessage, markMessagesRead, fetchReceipts,
+  pinMessage, unpinMessage, starMessage, unstarMessage, fetchStarredMessageIds
 } from './lib/queries';
 import type { Profile, Group, Meetup, Rsvp, Supply, Message, Membership } from './lib/queries';
 import AuthPage from './pages/AuthPage';
@@ -395,6 +396,9 @@ function ChatTab() {
   const channelRef = useRef<any>(null);
   const [receipts, setReceipts] = useState<Record<string, string[]>>({});
   const [menuMsg, setMenuMsg] = useState<string | null>(null); // message id for context menu
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [starredMsgIds, setStarredMsgIds] = useState<Set<string>>(new Set());
+  const [infoMsgId, setInfoMsgId] = useState<string | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const msgs = ctxMessages.map(m => ({
@@ -407,9 +411,15 @@ function ChatTab() {
     senderColor: m.profiles?.accent_color ?? '#21C55D',
     createdAt: m.created_at,
     isDeleted: !!m.deleted_at,
+    isPinned: m.is_pinned,
+    replyTo: m.reply_to,
   }));
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+
+  useEffect(() => {
+    fetchStarredMessageIds().then(ids => setStarredMsgIds(new Set(ids)));
+  }, []);
 
   // Auto mark all messages as read when chat opens or new messages arrive
   useEffect(() => {
@@ -424,7 +434,8 @@ function ChatTab() {
     if (!text.trim()) return;
     if (conversationId) {
       playSound('pop');
-      await sendMessage(conversationId, text.trim());
+      await sendMessage(conversationId, text.trim(), 'text', replyingTo ?? undefined);
+      setReplyingTo(null);
       await reloadData();
     }
     setText('');
@@ -560,15 +571,24 @@ function ChatTab() {
 
                 return (
                   <>
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>} label="Message info" onClick={() => {}} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6M3 10l6-6"/></svg>} label="Reply" onClick={() => {}} />
+                    {msg?.mine && <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>} label="Message info" onClick={() => setInfoMsgId(msg.id)} />}
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6M3 10l6-6"/></svg>} label="Reply" onClick={() => setReplyingTo(msg?.id ?? null)} />
                     <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>} label="Copy" onClick={() => navigator.clipboard?.writeText(msg?.text ?? '')} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>} label="React" onClick={() => {}} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>} label="Download" onClick={() => {}} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6M21 10l-6-6"/></svg>} label="Forward" onClick={() => {}} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>} label="New business broadcast" onClick={() => {}} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>} label="Pin" onClick={() => {}} />
-                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>} label="Star" onClick={() => {}} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>} label={msg?.isPinned ? "Unpin" : "Pin"} onClick={async () => {
+                      if (!msg) return;
+                      msg.isPinned ? await unpinMessage(msg.id) : await pinMessage(msg.id);
+                      reloadData();
+                    }} />
+                    <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>} label={starredMsgIds.has(msg?.id ?? '') ? "Unstar" : "Star"} onClick={async () => {
+                      if (!msg) return;
+                      if (starredMsgIds.has(msg.id)) {
+                        await unstarMessage(msg.id);
+                        setStarredMsgIds(prev => { const n = new Set(prev); n.delete(msg.id); return n; });
+                      } else {
+                        await starMessage(msg.id);
+                        setStarredMsgIds(prev => { const n = new Set(prev); n.add(msg.id); return n; });
+                      }
+                    }} />
                     {canDelete && (
                       <ActionBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>} label="Delete" onClick={() => handleDelete(menuMsg!)} color="#f87171" />
                     )}
@@ -638,6 +658,24 @@ function ChatTab() {
         </div>
       )}
 
+      {/* ── Pinned Messages ── */}
+      {msgs.filter(m => m.isPinned).map(msg => (
+        <div key={`pin-${msg.id}`} className="pinned-msg" style={{ marginTop: meetup ? 1 : 0 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#21C55D" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: 2 }}>
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+          </svg>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#21C55D', marginBottom: 1 }}>Pinned Message • {msg.senderName}</div>
+            <div style={{ fontSize: 13, color: 'var(--txt)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {msg.text}
+            </div>
+          </div>
+          <button onClick={async () => { await unpinMessage(msg.id); reloadData(); }} style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 4 }}>
+            ✕
+          </button>
+        </div>
+      ))}
+
       {/* ── Messages ── */}
       <div className="hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '12px 14px 8px' }}>
         {msgs.map((msg: any) => {
@@ -687,6 +725,15 @@ function ChatTab() {
                   onDoubleClick={() => !msg.isDeleted && toggleReaction('🔥')}
                   style={msg.isDeleted ? { opacity: 0.55, fontStyle: 'italic', fontSize: 13 } : undefined}
                 >
+                  {msg.replyTo && !msg.isDeleted && (
+                    <div style={{
+                      background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 8, marginBottom: 6,
+                      borderLeft: '3px solid rgba(255,255,255,0.3)', fontSize: 13, color: 'rgba(255,255,255,0.7)'
+                    }}>
+                      <div style={{ fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 2 }}>{msg.replyTo.profiles?.display_name ?? 'someone'}</div>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.replyTo.body}</div>
+                    </div>
+                  )}
                   {msg.text}
                 </div>
 
@@ -713,6 +760,7 @@ function ChatTab() {
 
                 {/* Time + read receipt */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                  {starredMsgIds.has(msg.id) && <span style={{ fontSize: 12 }}>⭐️</span>}
                   <span className="chat-time">{msg.time}</span>
                   {isMe && (
                     <span style={{ fontSize: 12, lineHeight: 1, marginBottom: 1 }}>
@@ -750,7 +798,23 @@ function ChatTab() {
         borderTop: '1px solid rgba(255,255,255,0.07)',
         flexShrink: 0,
       }}>
-        <div className="chat-input-wrapper">
+        {replyingTo && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'rgba(34,197,94,0.1)', padding: '8px 12px', borderRadius: '8px 8px 0 0',
+            borderLeft: '4px solid #21C55D', marginBottom: -2, borderBottom: '1px solid rgba(255,255,255,0.05)',
+            fontSize: 13, color: 'rgba(255,255,255,0.8)'
+          }}>
+            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>
+              <strong style={{ color: '#21C55D', display: 'block', marginBottom: 2 }}>Replying to {msgs.find(m => m.id === replyingTo)?.senderName ?? 'someone'}</strong>
+              {msgs.find(m => m.id === replyingTo)?.text}
+            </div>
+            <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 4 }}>
+              ✕
+            </button>
+          </div>
+        )}
+        <div className="chat-input-wrapper" style={{ borderRadius: replyingTo ? '0 0 24px 24px' : 24 }}>
           <div className="chat-input-row">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7E9C80" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
@@ -773,6 +837,57 @@ function ChatTab() {
           </SplashButton>
         </div>
       </div>
+      {/* ── Message Info Modal ── */}
+      {infoMsgId && (() => {
+        const msg = msgs.find(m => m.id === infoMsgId);
+        const readers = receipts[infoMsgId] ?? [];
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div onClick={() => setInfoMsgId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+            <div style={{ position: 'relative', background: '#1f2c34', borderRadius: 20, width: '100%', maxWidth: 360, padding: 20, boxShadow: '0 24px 60px rgba(0,0,0,0.8)', animation: 'fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: 18, color: '#fff' }}>Message Info</h3>
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: 12, borderRadius: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>{msg?.text}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Sent at {msg?.time}</div>
+              </div>
+              
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#4FC3F7', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ letterSpacing: -2 }}>✓✓</span> Read by
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {readers.filter(uid => uid !== session?.user?.id).map(uid => {
+                  const m = members.find(mbr => mbr.user_id === uid);
+                  return (
+                    <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: m?.profiles?.accent_color ?? '#21C55D', overflow: 'hidden' }}>
+                        {m?.profiles?.avatar_url && <img src={m.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      </div>
+                      <span style={{ fontSize: 14, color: '#fff' }}>{m?.profiles?.display_name ?? 'Member'}</span>
+                    </div>
+                  );
+                })}
+                {readers.length <= 1 && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>No one yet</div>}
+              </div>
+
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ letterSpacing: -2 }}>✓✓</span> Delivered to
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {members.filter(m => m.user_id !== session?.user?.id && !readers.includes(m.user_id)).map(m => (
+                  <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: m.profiles?.accent_color ?? '#21C55D', overflow: 'hidden', opacity: 0.5 }}>
+                      {m.profiles?.avatar_url && <img src={m.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    </div>
+                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>{m.profiles?.display_name ?? 'Member'}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={() => setInfoMsgId(null)} style={{ marginTop: 24, width: '100%', padding: '12px', borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

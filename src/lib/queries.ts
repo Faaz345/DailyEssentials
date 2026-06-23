@@ -79,8 +79,10 @@ export interface Message {
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
+  is_pinned: boolean;
   profiles?: Profile;
   message_reactions?: MessageReaction[];
+  reply_to?: { id: string; body: string; profiles?: { display_name: string } } | null;
 }
 
 // ─── Profile ─────────────────────────────────────────────────────
@@ -291,7 +293,7 @@ export const fetchOrCreateConversation = async (groupId: string): Promise<string
 export const fetchMessages = async (conversationId: string): Promise<Message[]> => {
   const { data, error } = await supabase
     .from('messages')
-    .select('*, profiles:sender_id(id, display_name, avatar_url, accent_color), message_reactions(*, profiles:user_id(id, display_name))')
+    .select('*, profiles:sender_id(id, display_name, avatar_url, accent_color), message_reactions(*, profiles:user_id(id, display_name)), reply_to:messages!reply_to_id(id, body, profiles:sender_id(display_name))')
     .eq('conversation_id', conversationId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
@@ -300,10 +302,10 @@ export const fetchMessages = async (conversationId: string): Promise<Message[]> 
   return data ?? [];
 };
 
-export const sendMessage = async (conversationId: string, body: string, kind: 'text' | 'image' | 'system' = 'text') => {
+export const sendMessage = async (conversationId: string, body: string, kind: 'text' | 'image' | 'system' = 'text', replyToId?: string) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-  const { error } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, body, kind });
+  const { error } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, body, kind, reply_to_id: replyToId });
   if (error) console.error('sendMessage Error:', error);
 };
 
@@ -329,6 +331,31 @@ export const deleteMessage = async (messageId: string) => {
     .eq('id', messageId)
     .eq('sender_id', user.id); // Only owner can delete
   if (error) console.error('deleteMessage:', error);
+};
+
+export const pinMessage = async (messageId: string) => {
+  await supabase.from('messages').update({ is_pinned: true }).eq('id', messageId);
+};
+export const unpinMessage = async (messageId: string) => {
+  await supabase.from('messages').update({ is_pinned: false }).eq('id', messageId);
+};
+
+export const starMessage = async (messageId: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('starred_messages').upsert({ user_id: user.id, message_id: messageId }, { onConflict: 'user_id,message_id' });
+};
+export const unstarMessage = async (messageId: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('starred_messages').delete().match({ user_id: user.id, message_id: messageId });
+};
+
+export const fetchStarredMessageIds = async (): Promise<string[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase.from('starred_messages').select('message_id').eq('user_id', user.id);
+  return data?.map(d => d.message_id) ?? [];
 };
 
 // Mark all messages in a conversation as read by current user
